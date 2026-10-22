@@ -35,11 +35,35 @@
         html[lang="zh"] [lang="en"], html[lang="en"] [lang="zh"] { display: none; }
     </style>
     <script>
-        // 语言：?lang=zh|en 优先，其次站内设置（localStorage app_language，与首页设置菜单同一个键），再其次浏览器语言
+        // 语言：?lang=zh|en 优先，其次站内设置（localStorage app_language，与首页设置菜单同一个键），再其次浏览器语言。
+        // 尽早改 <html lang>、title、meta description，便于 ?lang= 与爬虫。
+        // ?lang= 变体把 canonical 改成自身（与 hreflang 一致）；无 ?lang 时保持 x-default 的无参 URL。
         (function () {
             var q = new URLSearchParams(location.search).get('lang');
-            var s = localStorage.getItem('app_language');
-            var pref = q === 'zh' || q === 'en' ? q : s === 'zh' || s === 'en' ? s : navigator.language;
-            document.documentElement.lang = /^zh/i.test(pref || '') ? 'zh' : 'en';
+            var s = null;
+            try { s = localStorage.getItem('app_language'); } catch (e) {}
+            var pref = q === 'zh' || q === 'en' ? q : s === 'zh' || s === 'en' ? s : (navigator.language || '');
+            var lang = /^zh/i.test(pref || '') ? 'zh' : 'en';
+            document.documentElement.lang = lang;
+            var titleEl = document.querySelector('title');
+            if (titleEl) {
+                var titled = titleEl.getAttribute('data-title-' + lang);
+                if (titled) document.title = titled;
+            }
+            var desc = document.querySelector('meta[name="description"]');
+            if (desc) {
+                var d = desc.getAttribute('data-desc-' + lang);
+                if (d) desc.setAttribute('content', d);
+            }
+            if (q === 'zh' || q === 'en') {
+                var canon = document.querySelector('link[rel="canonical"]');
+                if (canon) {
+                    try {
+                        var u = new URL(canon.getAttribute('href') || '', location.href);
+                        u.searchParams.set('lang', q);
+                        canon.setAttribute('href', u.href);
+                    } catch (e) {}
+                }
+            }
         })();
     </script>

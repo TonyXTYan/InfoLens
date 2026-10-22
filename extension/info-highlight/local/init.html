@@ -81,12 +81,13 @@
 <body>
   <main>
     <h1 data-i18n>On-device model setup</h1>
-    <p id="lead" data-i18n>This downloads about 800 MB (Gemma 3 270M q4) and keeps it on this computer.</p>
+    <p id="lead" data-i18n>This downloads model weights and keeps them on this computer.</p>
     <label class="hub">
       <span data-i18n>Download source</span>
       <select id="model_hub" aria-label="Weight download source" data-i18n-attr="aria-label">
-        <option value="huggingface" data-i18n>Official</option>
-        <option value="modelscope" data-i18n>China</option>
+        <option value="huggingface" data-i18n>Official (Hugging Face)</option>
+        <option value="modelscope" data-i18n>China (ModelScope)</option>
+        <option value="local" id="hub_local" hidden data-i18n>Local dev server</option>
       </select>
     </label>
     <p id="status"></p>
@@ -99,7 +100,9 @@
       <button type="button" id="close" data-i18n hidden>Close</button>
     </div>
   </main>
+  <script src="../config.js"></script>
   <script src="../zh.js"></script>
+  <script src="../options-i18n.js"></script>
   <script src="../i18n.js"></script>
   <script src="state.js"></script>
   <script src="init.js"></script>

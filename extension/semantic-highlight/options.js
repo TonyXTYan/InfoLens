@@ -5,6 +5,8 @@
   if (typeof globalThis.IL_setActionIconDotted !== 'function') {
     throw new Error('IL_setActionIconDotted missing — inject action-dot.js before options.js');
   }
+  const tr = globalThis.IL_optionsTr;
+  if (!tr) throw new Error('IL_optionsTr missing — inject options-i18n.js before options.js');
   IL_setActionIconDotted(false);
 
   const iconEl = document.getElementById('brand_icon');
@@ -42,12 +44,12 @@
 
   async function refresh() {
     const { entries, bytes } = await globalThis.IL_analyzeCache.usage();
-    descEl.textContent = `${entries} entries · ${formatBytes(bytes)}`;
+    descEl.textContent = tr('{entries} entries · {size}', { entries, size: formatBytes(bytes) });
     clearBtn.disabled = entries === 0;
   }
 
   function showCacheError(err) {
-    descEl.textContent = err?.message || String(err);
+    descEl.textContent = err?.message || tr('Failed to read status');
     clearBtn.disabled = true;
   }
 
@@ -57,12 +59,37 @@
       await globalThis.IL_analyzeCache.dropAll();
       await refresh();
     } catch (err) {
-      descEl.textContent = err?.message || String(err);
+      descEl.textContent = err?.message || tr('Failed to clear');
       clearBtn.disabled = false;
     }
   });
 
   void refresh().catch(showCacheError);
+
+  if (!globalThis.IL_optionsAbout) {
+    throw new Error('IL_optionsAbout missing — inject options-about.js before options.js');
+  }
+  const ABOUT_LEAD =
+    'Semantic Highlight is part of <a class="about-home" href="https://info-lens.app/" target="_blank" rel="noopener noreferrer">Info Lens</a>, a toolbox for exploring the informational nature of LLMs and language.';
+  const STORE_REVIEWS =
+    'https://chromewebstore.google.com/detail/jnjglfjkbopeiodpcgmlhkfhldjfcdda/reviews';
+  const aboutSection = document.getElementById('about');
+  if (!aboutSection) throw new Error('options page missing #about');
+  globalThis.IL_optionsAbout.mount(aboutSection, {
+    tr,
+    leadHtml: tr(ABOUT_LEAD),
+    storeReviewUrl: STORE_REVIEWS,
+    async sendNote(note) {
+      const res = await chrome.runtime.sendMessage({ type: 'ih-author-note', ...note });
+      if (!res?.ok) throw new Error(res?.error || 'Could not send');
+    },
+  });
+  void globalThis.IL_optionsAbout.applyOpenFeedbackIfRequested?.();
+
+  if (!globalThis.IL_optionsNav) {
+    throw new Error('IL_optionsNav missing — inject options-nav.js before options.js');
+  }
+  globalThis.IL_optionsNav.init();
 
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;

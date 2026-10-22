@@ -3,7 +3,12 @@
  * 便于爬虫与不执行 JS 的环境读取。页内可见文案带 data-i18n，运行时由 initI18n 按英文 key 翻译；
  * 浏览器标题在构建时由本脚本写入：主标题与副标题与 page-meta 一致；副标题若以 “-” 开头（工具页 tagline）则与标题之间只加一个空格；否则中间加 “ - ”（如首页主副标题）。
  * 中文环境由 <title data-i18n> 在 initI18n 翻译整串 key。
+ * 同时写入 meta description、canonical、JSON-LD、hreflang（见 injectSeoHead）。
  */
+
+const DEFAULT_SITE_ORIGIN = 'https://info-lens.app';
+const DEFAULT_STORE_URL =
+    'https://chromewebstore.google.com/detail/info-highlight/gemajnklkebeikmfphiddpjfimahacdk';
 
 /**
  * @param {string} s
@@ -48,9 +53,190 @@ function injectDataPageBlock(html, attrToken, text) {
 }
 
 /**
+ * @param {{ siteOrigin?: string }} doc
+ * @returns {string}
+ */
+function siteOrigin(doc) {
+    return String(doc?.siteOrigin || DEFAULT_SITE_ORIGIN).replace(/\/+$/, '');
+}
+
+/**
+ * @param {{ siteOrigin?: string }} doc
+ * @param {string} [path]
+ * @returns {string}
+ */
+function absoluteUrl(doc, path) {
+    const origin = siteOrigin(doc);
+    if (!path || path === '/') return `${origin}/`;
+    if (/^https?:\/\//i.test(path)) return path;
+    return `${origin}${path.startsWith('/') ? path : `/${path}`}`;
+}
+
+/**
+ * @param {string} html
+ * @param {string} snippet
+ * @returns {string}
+ */
+function insertBeforeHeadClose(html, snippet) {
+    const trimmed = String(snippet).replace(/^\n+|\n+$/g, '');
+    if (/<\/head>/i.test(html)) {
+        return html.replace(/<\/head>/i, `${trimmed}\n</head>`);
+    }
+    return `${html}\n${trimmed}`;
+}
+
+/**
+ * @param {string} html
+ * @param {RegExp} re
+ * @param {string} replacement
+ * @returns {string | null}
+ */
+function replaceFirst(html, re, replacement) {
+    const m = html.match(re);
+    if (!m || m.index == null) return null;
+    return html.slice(0, m.index) + replacement + html.slice(m.index + m[0].length);
+}
+
+/**
+ * @param {{ chromeWebStoreUrl?: string }} doc
+ * @param {string} pageUrl
+ * @param {string} description
+ */
+function softwareApplicationLd(doc, pageUrl, description) {
+    const storeUrl = doc.chromeWebStoreUrl || DEFAULT_STORE_URL;
+    return {
+        '@context': 'https://schema.org',
+        '@type': 'SoftwareApplication',
+        name: 'Info Highlight',
+        applicationCategory: 'BrowserApplication',
+        operatingSystem: 'Chrome',
+        url: pageUrl,
+        description,
+        installUrl: storeUrl,
+        sameAs: [storeUrl],
+        offers: {
+            '@type': 'Offer',
+            price: '0',
+            priceCurrency: 'USD',
+            description: 'On-device WebGPU analysis is free. Cloud analysis uses optional paid credits.',
+        },
+    };
+}
+
+/**
+ * @param {string} pageUrl
+ * @param {string} description
+ */
+function websiteLd(pageUrl, description) {
+    return {
+        '@context': 'https://schema.org',
+        '@graph': [
+            {
+                '@type': 'WebSite',
+                name: 'Info Lens',
+                url: pageUrl,
+                description,
+            },
+            {
+                '@type': 'Organization',
+                name: 'Info Lens',
+                url: pageUrl,
+            },
+        ],
+    };
+}
+
+/**
+ * @param {object} obj
+ * @returns {string}
+ */
+function jsonLdScript(obj) {
+    const json = JSON.stringify(obj).replace(/</g, '\\u003c');
+    return `    <script type="application/ld+json">${json}</script>`;
+}
+
+/**
+ * 写入 description / canonical / robots / hreflang / JSON-LD。已存在的 description 与 canonical 会被替换。
+ *
+ * @param {string} html
+ * @param {{ canonicalPath?: string, description?: string, jsonLd?: string, hreflang?: boolean, robots?: string }} meta
+ * @param {{ siteOrigin?: string, chromeWebStoreUrl?: string }} doc
+ * @returns {string}
+ */
+function injectSeoHead(html, meta, doc) {
+    if (!meta) return html;
+    const pageUrl = absoluteUrl(doc, meta.canonicalPath);
+    const description = meta.description ? String(meta.description).trim() : '';
+
+    if (description) {
+        const descZh = meta.descriptionZh ? String(meta.descriptionZh).trim() : '';
+        const descTag = descZh
+            ? `<meta name="description" content="${escapeHtmlText(description)}" data-desc-en="${escapeHtmlText(description)}" data-desc-zh="${escapeHtmlText(descZh)}">`
+            : `<meta name="description" content="${escapeHtmlText(description)}" data-i18n="content">`;
+        const replaced = replaceFirst(
+            html,
+            /<meta\b[^>]*\bname\s*=\s*(["'])description\1[\s\S]*?>/i,
+            descTag
+        );
+        html = replaced || insertBeforeHeadClose(html, `    ${descTag}`);
+    }
+
+    if (meta.canonicalPath) {
+        const canonTag = `<link rel="canonical" href="${escapeHtmlText(pageUrl)}">`;
+        const replaced = replaceFirst(
+            html,
+            /<link\b[^>]*\brel\s*=\s*(["'])canonical\1[\s\S]*?>/i,
+            canonTag
+        );
+        html = replaced || insertBeforeHeadClose(html, `    ${canonTag}`);
+    }
+
+    if (meta.robots) {
+        const robotsTag = `<meta name="robots" content="${escapeHtmlText(meta.robots)}">`;
+        const replaced = replaceFirst(
+            html,
+            /<meta\b[^>]*\bname\s*=\s*(["'])robots\1[\s\S]*?>/i,
+            robotsTag
+        );
+        html = replaced || insertBeforeHeadClose(html, `    ${robotsTag}`);
+    }
+
+    if (meta.hreflang && meta.canonicalPath) {
+        const path = meta.canonicalPath === '/' ? '/' : meta.canonicalPath;
+        const sep = path.includes('?') ? '&' : '?';
+        const en = absoluteUrl(doc, `${path}${sep}lang=en`);
+        const zh = absoluteUrl(doc, `${path}${sep}lang=zh`);
+        const def = pageUrl;
+        const tags = [
+            `<link rel="alternate" hreflang="en" href="${escapeHtmlText(en)}">`,
+            `<link rel="alternate" hreflang="zh" href="${escapeHtmlText(zh)}">`,
+            `<link rel="alternate" hreflang="x-default" href="${escapeHtmlText(def)}">`,
+        ]
+            .map((t) => `    ${t}`)
+            .join('\n');
+        if (!/\bhreflang\s*=/i.test(html)) {
+            html = insertBeforeHeadClose(html, tags);
+        }
+    }
+
+    if (!/application\/ld\+json/i.test(html)) {
+        if (meta.jsonLd === 'software') {
+            html = insertBeforeHeadClose(
+                html,
+                jsonLdScript(softwareApplicationLd(doc, pageUrl, description))
+            );
+        } else if (meta.jsonLd === 'website') {
+            html = insertBeforeHeadClose(html, jsonLdScript(websiteLd(pageUrl, description)));
+        }
+    }
+
+    return html;
+}
+
+/**
  * @param {string} html
  * @param {string} pageKey
- * @param {{ pages: Record<string, { title: string, subtitle: string, href?: string, titleNote?: string, heartline?: string, formula?: string }>, navPageKeys: string[] }} doc
+ * @param {{ pages: Record<string, { title: string, subtitle: string, href?: string, titleNote?: string, heartline?: string, formula?: string, canonicalPath?: string, description?: string, jsonLd?: string, hreflang?: boolean, robots?: string }>, navPageKeys: string[], siteOrigin?: string, chromeWebStoreUrl?: string }} doc
  * @returns {string}
  */
 function injectPageMeta(html, pageKey, doc) {
@@ -104,7 +290,7 @@ function injectPageMeta(html, pageKey, doc) {
                     : navKey === 'semanticHighlight'
                         ? '500 likes/stars on RedNote'
                         : navKey === 'infoHighlight'
-                            ? '1K+ likes/stars on RedNote'
+                            ? '3K+ likes/stars on RedNote'
                             : '';
             const badge = badgeText
                 ? `<span class="nav-landing-card-badge" title="Go to demo on RedNote: xhslink.com" data-i18n="text,title">${badgeText}</span>`
@@ -176,7 +362,14 @@ function injectPageMeta(html, pageKey, doc) {
         }
     }
 
-    return html;
+    return injectSeoHead(html, meta, doc);
 }
 
-module.exports = { injectPageMeta, escapeHtmlText, documentTitleEn };
+module.exports = {
+    injectPageMeta,
+    injectSeoHead,
+    escapeHtmlText,
+    documentTitleEn,
+    absoluteUrl,
+    softwareApplicationLd,
+};

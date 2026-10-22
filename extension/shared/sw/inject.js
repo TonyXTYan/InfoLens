@@ -44,14 +44,21 @@ globalThis.IL_isTransientFrameError = function IL_isTransientFrameError(err) {
  */
 globalThis.IL_injectOnce = async function IL_injectOnce(tabId, files) {
   // 显式 frameIds:[0]，避免对已消失子 frame 误操作；主文档未就绪时由上层重试
-  await chrome.scripting.insertCSS({
-    target: { tabId, frameIds: [0] },
-    files: files.css,
-  });
-  await chrome.scripting.executeScript({
-    target: { tabId, frameIds: [0] },
-    files: files.js,
-  });
+  const css = files.css?.length ? files.css : null;
+  const js = files.js?.length ? files.js : null;
+  if (!css && !js) return;
+  if (css) {
+    await chrome.scripting.insertCSS({
+      target: { tabId, frameIds: [0] },
+      files: css,
+    });
+  }
+  if (js) {
+    await chrome.scripting.executeScript({
+      target: { tabId, frameIds: [0] },
+      files: js,
+    });
+  }
 };
 
 /**

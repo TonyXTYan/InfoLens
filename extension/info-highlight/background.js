@@ -1,6 +1,6 @@
 /**
  * 工具栏点击 / 右键菜单 → 注入 content（activeTab 手势）。已注入则 toggle。
- * 分析：本机 WebGPU（已就绪）或 /api/analyze。
+ * 分析：本机 WebGPU（已就绪），或云端。官方门面：余额至少 1 点走 /v2/analyze，为 0 走 /v2/analyze-free。选项自定义 API 根时走 POST /api/analyze。
  * PDF：整条流程在 pdf/sw.js（共享），本文件只负责在网页管线里的何处插入它。
  */
 
@@ -8,11 +8,15 @@ importScripts('sw/restricted-url.js');
 importScripts('sw/action-dot.js');
 importScripts('options-attention.js');
 importScripts('options-catalog.js');
+importScripts('config.js');
+importScripts('api-base.js');
 importScripts('sw/lifecycle-events.js');
+importScripts('open-about-feedback.js');
 importScripts('sw/client-id.js');
+importScripts('sw/author-note.js');
 importScripts('sw/inject.js');
 importScripts('auto-sites.js');
-importScripts('config.js');
+importScripts('anonymousSiteDomain.js');
 importScripts('pdf/stash-db.js');
 importScripts('pdf/sw.js');
 importScripts('cache/ring-store.js');
@@ -21,11 +25,16 @@ importScripts('local/state.js');
 importScripts('highlightStyle.js');
 importScripts('optionDefaults.js');
 importScripts('zh.js');
+importScripts('options-i18n.js');
 importScripts('i18n.js');
 importScripts('local/userErrors.js');
 importScripts('cloudWait.js');
 importScripts('init-window-bounds.js');
 importScripts('action-state.js');
+importScripts('library-capture-allowlist.js');
+importScripts('library.js');
+importScripts('full-save-demo.js');
+importScripts('reader-save-demo.js');
 
 const EXTENSION_ID = 'info-highlight';
 const { tr } = IH_i18n;
@@ -39,11 +48,20 @@ if (!globalThis.IH_analyzeCache) throw new Error('IH_analyzeCache missing');
 if (!globalThis.IH_initWindowBounds) throw new Error('IH_initWindowBounds missing');
 if (!globalThis.IH_actionState) throw new Error('IH_actionState missing');
 if (!globalThis.IH_autoSites) throw new Error('IH_autoSites missing');
+if (!globalThis.IH_anonymousSiteDomain) throw new Error('IH_anonymousSiteDomain missing');
+if (!globalThis.IH_libraryCaptureAllowlist) throw new Error('IH_libraryCaptureAllowlist missing');
+if (!globalThis.IH_library) throw new Error('IH_library missing');
+if (!globalThis.IH_fullSaveDemo) throw new Error('IH_fullSaveDemo missing');
+if (!globalThis.IH_readerSaveDemo) throw new Error('IH_readerSaveDemo missing');
 
-IL_prepareClientIdReporting(EXTENSION_ID);
+void IL_ensureApiBaseLoaded().then(() => IL_prepareClientIdReporting(EXTENSION_ID));
 
-function analyzeUrl() {
-  return `${IL_API_BASE}/api/analyze`;
+async function fetchWithApiKey(path, init, apiKey) {
+  await IL_ensureApiBaseLoaded();
+  apiKey ??= await IL_getApiKey();
+  const headers = new Headers(init?.headers || {});
+  headers.set('Authorization', `Bearer ${apiKey}`);
+  return fetch(`${IL_API_BASE}${path}`, { ...init, headers });
 }
 
 const CONTENT_CSS = ['content.css'];
@@ -53,6 +71,7 @@ const CONTENT_JS = [
   'vendor/Readability.js',
   'extractRootPatches.js',
   'articleRoot.js',
+  'visualBlockOrder.js',
   'textMapConfig.js',
   'collectTextMap.js',
   'splitTextToChunks.js',
@@ -65,15 +84,23 @@ const CONTENT_JS = [
   'highlightStyle.js',
   'optionDefaults.js',
   'wordMerge.js',
+  'config.js',
+  'options-about-zh.js',
   'zh.js',
+  'options-i18n.js',
   'i18n.js',
   'local/userErrors.js',
   'cloudWait.js',
+  'dynamicTrack.js',
   'page-map.js',
   'tokenTip.js',
   'analyzeRun.js',
   'auto-sites.js',
   'auto-nudge.js',
+  'engagement-nudge-key.js',
+  'engagement-nudge.js',
+  'engagement-nudge-ui.js',
+  'anonymousSiteDomain.js',
   'content.js',
 ];
 
@@ -83,14 +110,15 @@ const CONTENT_JS = [
  * SYNC: content.js 的 data-ih-cs。PDF 入口节点由 entry.js 同 id 回收，不当 stale。
  * @param {'toggle' | 'start' | 'force' | ''} [method]
  * @param {string} [cloudModel] force 时钉住的云端模型 id；空则走当前偏好
+ * @param {string} [trigger] auto | icon | menu | rerun | other
  * @returns {Promise<{ state: 'live' | 'stale' | 'empty', result?: unknown }>}
  */
-async function pageCsPeek(tabId, method, cloudModel) {
+async function pageCsPeek(tabId, method, cloudModel, trigger) {
   try {
     const results = await chrome.scripting.executeScript({
       target: { tabId, frameIds: [0] },
-      args: [method || '', typeof cloudModel === 'string' ? cloudModel : ''],
-      func: (m, model) => {
+      args: [method || '', typeof cloudModel === 'string' ? cloudModel : '', typeof trigger === 'string' ? trigger : ''],
+      func: (m, model, why) => {
         const demo = window.__IH_DEMO__;
         const pdf = window.__IH_PDF_ENTRY__;
         let live = false;
@@ -111,11 +139,11 @@ async function pageCsPeek(tabId, method, cloudModel) {
             return { state: 'live', result: demo.start() };
           }
           if (m === 'force' && typeof demo?.force === 'function') {
-            demo.force(model);
+            demo.force(model, why);
             return { state: 'live', result: true };
           }
           if (m === 'toggle' && typeof demo?.toggle === 'function') {
-            demo.toggle();
+            demo.toggle(why);
             return { state: 'live', result: true };
           }
           return { state: 'live' };
@@ -150,16 +178,48 @@ async function pageAlert(tabId, msg) {
   }
 }
 
-async function refuseStalePage(tabId) {
-  await setBadgeError(tabId, 'refresh this page');
+async function refuseStalePage(tabId, trigger) {
+  await setBadgeError(tabId, 'refresh this page', trigger);
   await pageAlert(tabId, STALE_PAGE_MSG);
+}
+
+/** 收藏：注入网页管线，从头画到上限（已画段走会话缓存）。过期页返回 false（已提示刷新）。 */
+async function ensureLibraryAnalyzed(id) {
+  const peek = await pageCsPeek(id);
+  if (peek.state === 'stale') {
+    await refuseStalePage(id, 'library');
+    return false;
+  }
+  if (peek.state !== 'live') {
+    await IL_injectWithRetry(id, { css: CONTENT_CSS, js: CONTENT_JS }, {
+      logLabel: 'Info Highlight',
+      waitComplete: false,
+    });
+    const after = await pageCsPeek(id);
+    if (after.state === 'stale') {
+      await refuseStalePage(id, 'library');
+      return false;
+    }
+    if (after.state !== 'live') throw new Error('inject');
+  }
+  const results = await chrome.scripting.executeScript({
+    target: { tabId: id, frameIds: [0] },
+    func: async () => {
+      const fn = window.__IH_DEMO__?.ensureForLibrary;
+      if (typeof fn !== 'function') throw new Error('ensureForLibrary missing');
+      await fn();
+      return true;
+    },
+  });
+  if (!results?.[0]?.result) throw new Error('Analyze failed');
+  return true;
 }
 
 function clearBadge(tabId) {
   void chrome.action.setBadgeText({ text: '', tabId });
 }
 
-async function setBadgeError(tabId, brief) {
+async function setBadgeError(tabId, brief, trigger) {
   try {
     IH_actionState.set(tabId, 'off');
     await chrome.action.setBadgeBackgroundColor({ color: '#c0392b', tabId });
@@ -168,11 +228,27 @@ async function setBadgeError(tabId, brief) {
   } catch {
     /* ignore */
   }
+  try {
+    await postUsageReport({
+      outcome: 'failed',
+      segments: 0,
+      error: String(brief || '').slice(0, 500),
+      trigger,
+    });
+  } catch {
+    /* ignore */
+  }
+  try {
+    await postAnonymousSiteDomainForTab(tabId, trigger);
+  } catch {
+    /* ignore */
+  }
 }
 
-async function activateTab(tab, force, cloudModel) {
+async function activateTab(tab, force, cloudModel, trigger) {
   if (!tab?.id) return;
   const pinned = force ? knownCloudModel(cloudModel) : '';
+  const why = typeof trigger === 'string' ? trigger : '';
   // optional file:// request 必须在手势同步阶段启动；前面不能有 await
   const fileHostPromise = IL_pdfSw.isFileUrl(tab.url) ? IL_pdfSw.requestFileHostFromGesture() : null;
   IL_setActionIconDotted(false);
@@ -191,12 +267,13 @@ async function activateTab(tab, force, cloudModel) {
           type: force ? 'ih-pdf-force' : 'ih-pdf-toggle',
           tabId: tab.id,
           ...(pinned ? { cloudModel: pinned } : {}),
+          ...(why ? { trigger: why } : {}),
         }, (res) => {
           resolve(!chrome.runtime.lastError && res?.ok === true);
         });
       });
       if (!ok) {
-        await setBadgeError(tab.id, 'inject');
+        await setBadgeError(tab.id, 'inject', why);
         return;
       }
       clearBadge(tab.id);
@@ -204,18 +281,23 @@ async function activateTab(tab, force, cloudModel) {
     }
     if (IL_isRestrictedUrl(url)) {
       console.warn('[Info Highlight] cannot run on this page:', url);
-      await setBadgeError(tab.id, "can't run here — this page is protected");
+      await setBadgeError(tab.id, "can't run here — this page is protected", why);
+      try {
+        await openRestrictedPageWindow(fresh.windowId ?? tab.windowId);
+      } catch (err) {
+        console.warn('[Info Highlight] restricted-page notice', err);
+      }
       return;
     }
     const access = await IL_pdfSw.ensureFileUrlAccess(url, fileHostPromise);
     if (!access.ok) {
-      await setBadgeError(tab.id, access.brief);
+      await setBadgeError(tab.id, access.brief, why);
       return;
     }
     if (IL_pdfSw.isPdfUrl(url)) {
       const peek = await pageCsPeek(tab.id);
       if (peek.state === 'stale') {
-        await refuseStalePage(tab.id);
+        await refuseStalePage(tab.id, why);
         return;
       }
       await IL_pdfSw.injectEntry(tab.id);
@@ -224,9 +306,9 @@ async function activateTab(tab, force, cloudModel) {
     }
     // 无 .pdf 后缀时先由页内按 Content-Type / 魔数确认，再退回网页管线
     {
-      const peek = await pageCsPeek(tab.id, force ? 'force' : 'toggle', pinned);
+      const peek = await pageCsPeek(tab.id, force ? 'force' : 'toggle', pinned, why);
       if (peek.state === 'stale') {
-        await refuseStalePage(tab.id);
+        await refuseStalePage(tab.id, why);
         return;
       }
       // result 表示页内 demo.toggle / force 已执行。仅 PDF 入口 live 时没有 result，要落到下面切按钮。
@@ -247,9 +329,9 @@ async function activateTab(tab, force, cloudModel) {
       logLabel: 'Info Highlight',
       waitComplete: false,
     });
-    const after = await pageCsPeek(tab.id, force ? 'force' : 'toggle', pinned);
+    const after = await pageCsPeek(tab.id, force ? 'force' : 'toggle', pinned, why);
     if (after.state !== 'live') {
-      await setBadgeError(tab.id, 'inject');
+      await setBadgeError(tab.id, 'inject', why);
       return;
     }
     console.info('[Info Highlight] injected into', okTab.url);
@@ -264,7 +346,7 @@ async function activateTab(tab, force, cloudModel) {
       console.error('[Info Highlight] pdf-entry inject failed', pdfErr);
     }
     console.error('[Info Highlight] inject failed', err);
-    await setBadgeError(tab.id, 'inject');
+    await setBadgeError(tab.id, 'inject', why);
   }
 }
 
@@ -273,6 +355,7 @@ const FORCE_MENU_ID = 'ih-force-analyze';
 const FORCE_MODEL_PREFIX = 'ih-force-model:';
 const AUTO_MENU_ID = 'ih-auto-site';
 const OPTIONS_MENU_ID = 'ih-options';
+const EXTRACT_PREVIEW_MENU_ID = 'ih-extract-preview';
 const ANALYZE_MENU_TITLE = tr('Analyze this page');
 const FORCE_ANALYZE_MENU_TITLE = tr('Reanalyze this page');
 
@@ -283,6 +366,22 @@ function knownCloudModel(id) {
 
 /** SYNC: page-map.js FADE_DEFAULT_NOTICE。没存过形式的升级用户，下次网页高亮时提醒一次。 */
 const FADE_DEFAULT_NOTICE = 'ih_fade_default_notice';
+/** 最低可见度默认 30%：升级时覆盖已有值，不弹提示；只写一次，以免以后用户再改又被盖掉。 */
+const FADE_MIN_FORCE_30 = 'ih_fade_min_force_30';
+
+/** SYNC: options.html 侧栏锚点 */
+const OPTIONS_PAGE_SECTIONS = new Set([
+  'highlight',
+  'display',
+  'content',
+  'analysis',
+  'cloud-credits',
+  'credit-orders',
+  'auto-analyze',
+  'storage',
+  'settings-restore',
+  'about',
+]);
 
 async function armFadeDefaultNotice(details) {
   const paintKey = IH_highlightStyle.KEY_PAINT_STYLE;
@@ -300,8 +399,25 @@ async function armFadeDefaultNotice(details) {
   }
 }
 
+async function applyFadeMinDefault(details) {
+  if (details.reason !== 'install' && details.reason !== 'update') return;
+  const cur = await chrome.storage.local.get([FADE_MIN_FORCE_30]);
+  if (cur[FADE_MIN_FORCE_30]) return;
+  const patch = { [FADE_MIN_FORCE_30]: true };
+  if (details.reason === 'update') {
+    patch[IH_highlightStyle.KEY_FADE_MIN_PCT] = IH_highlightStyle.FADE_MIN_DEFAULT;
+  }
+  await chrome.storage.local.set(patch);
+}
+
 function autoMenuTitle(host, on) {
   return on ? tr('Stop always analyzing {host}', { host }) : tr('Always analyze {host}', { host });
+}
+
+function extractPreviewMenuTitle(on) {
+  return on
+    ? tr('(Debug) Stop outlining extractable text')
+    : tr('(Debug) Outline extractable text');
 }
 
 /** 人工点过图标的标签：自动分析别再插手，直到下次导航 */
@@ -331,23 +447,145 @@ async function syncAutoMenu(tabId) {
   });
 }
 
+/** 普通 http(s) 网页；PDF / 受保护页 / 插件页等不展示「划出可提取文本」。 */
+function extractPreviewSupportedUrl(url) {
+  if (!url || IL_isRestrictedUrl(url)) return false;
+  if (IL_pdfSw.isPdfUrl(url) || IL_pdfSw.isOwnViewerUrl(url)) return false;
+  return /^https?:\/\//i.test(url);
+}
+
+/** 受保护页 / PDF 等：不展示「收藏到手机」入口。 */
+function syncLibraryMenu(tabId) {
+  void chrome.tabs.get(tabId).then((tab) => {
+    const visible = !IH_library.saveBlockedUrl(tab?.url || '');
+    chrome.contextMenus.update(IH_library.MENU_ID, { visible }, () => {
+      void chrome.runtime.lastError;
+    });
+  }).catch(() => {
+    chrome.contextMenus.update(IH_library.MENU_ID, { visible: false }, () => {
+      void chrome.runtime.lastError;
+    });
+  });
+}
+
+function syncTabContextMenus(tabId) {
+  void syncAutoMenu(tabId);
+  syncLibraryMenu(tabId);
+  void syncExtractPreviewMenu(tabId);
+}
+
+async function syncExtractPreviewMenu(tabId) {
+  const setMenu = (patch) => {
+    chrome.contextMenus.update(EXTRACT_PREVIEW_MENU_ID, patch, () => {
+      void chrome.runtime.lastError;
+    });
+  };
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    if (!extractPreviewSupportedUrl(tab?.url || '')) {
+      setMenu({ visible: false, title: extractPreviewMenuTitle(false) });
+      return;
+    }
+    setMenu({ visible: true });
+    const peek = await pageCsPeek(tabId);
+    if (peek.state !== 'live') {
+      setMenu({ title: extractPreviewMenuTitle(false) });
+      return;
+    }
+    const results = await chrome.scripting.executeScript({
+      target: { tabId, frameIds: [0] },
+      func: () => !!window.__IH_DEMO__?.isExtractPreviewOn?.(),
+    });
+    setMenu({ title: extractPreviewMenuTitle(!!results?.[0]?.result) });
+  } catch {
+    setMenu({ visible: false, title: extractPreviewMenuTitle(false) });
+  }
+}
+
+async function toggleExtractPreviewOnTab(tab) {
+  if (!tab?.id) return;
+  const tabId = tab.id;
+  if (!extractPreviewSupportedUrl(tab.url || '')) return;
+  const peek = await pageCsPeek(tabId);
+  if (peek.state === 'stale') {
+    void refuseStalePage(tab.id, 'menu');
+    return;
+  }
+  if (peek.state !== 'live') {
+    const okTab = await IL_injectWithRetry(tabId, { css: CONTENT_CSS, js: CONTENT_JS }, {
+      logLabel: 'Info Highlight',
+      waitComplete: false,
+    });
+    const after = await pageCsPeek(tabId);
+    if (after.state === 'stale') {
+      void refuseStalePage(tab.id, 'menu');
+      return;
+    }
+    if (after.state !== 'live') {
+      await setBadgeError(tabId, 'inject', 'menu');
+      console.error('[Info Highlight] inject failed for extract preview', okTab?.url);
+      return;
+    }
+  }
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId, frameIds: [0] },
+      func: () => {
+        const fn = window.__IH_DEMO__?.toggleExtractPreview;
+        if (typeof fn !== 'function') throw new Error('toggleExtractPreview missing');
+        return fn();
+      },
+    });
+    const on = !!results?.[0]?.result;
+    chrome.contextMenus.update(EXTRACT_PREVIEW_MENU_ID, { title: extractPreviewMenuTitle(on) }, () => {
+      void chrome.runtime.lastError;
+    });
+  } catch (err) {
+    console.error('[Info Highlight] extract preview', err);
+    await pageAlert(tabId, String(err?.message || err));
+  }
+}
+
+const AUTO_SITE_PENDING_KEY = 'ih_auto_site_pending';
+
+async function settleAutoSitePending() {
+  const res = await chrome.storage.session.get({ [AUTO_SITE_PENDING_KEY]: null });
+  const pending = res[AUTO_SITE_PENDING_KEY];
+  if (!pending || typeof pending.host !== 'string' || typeof pending.tabId !== 'number') return;
+  const hasPerm = await IH_autoSites.hasAllSitesPermission();
+  if (!hasPerm) return;
+  manualTabs.delete(pending.tabId);
+  await IH_autoSites.add(pending.host);
+  await chrome.storage.session.remove(AUTO_SITE_PENDING_KEY);
+  await maybeAutoAnalyze(pending.tabId);
+  await syncAutoMenu(pending.tabId);
+}
+
 async function toggleAutoSite(info, tabId, tabUrl) {
   // 网页右键带 pageUrl。图标菜单的点击参数是空的，host 用这次点击授予的 tab.url。
   const url = info.pageUrl || tabUrl || '';
   const host = IH_autoSites.hostOf(url);
   if (!host) throw new Error(`auto-site menu on unsupported url: ${url || '(none)'}`);
+  const origin = IH_autoSites.allSitesPermissionRequest();
   // 手势同步阶段发起；已授权时不弹窗直接 true，故开关两向都先发它
-  const requested = chrome.permissions.request({ origins: [IH_autoSites.originPattern(host)] });
+  const requested = IH_autoSites.requestAllSitesPermission();
   const wasOn = await IH_autoSites.hasExact(host);
-  const granted = await requested;
   // 用户刚在菜单里表了态，之前点图标的操作不再压制自动分析
   manualTabs.delete(tabId);
   if (wasOn) {
+    await requested;
     await IH_autoSites.remove(host);
-  } else if (granted) {
-    await IH_autoSites.add(host);
-    await maybeAutoAnalyze(tabId);
+    await syncAutoMenu(tabId);
+    return;
   }
+  // 弹窗期间 SW 可能被掐掉，request 的 true 回不来；意图先写入 session，授权到了再补名单。
+  await chrome.storage.session.set({ [AUTO_SITE_PENDING_KEY]: { host, tabId } });
+  const granted = await requested.catch(() => false);
+  if (granted || (await chrome.permissions.contains(origin))) {
+    await settleAutoSitePending();
+    return;
+  }
+  await chrome.storage.session.remove(AUTO_SITE_PENDING_KEY);
   await syncAutoMenu(tabId);
 }
 
@@ -356,38 +594,81 @@ const NUDGE_WIDTH = 540;
 const NUDGE_HEIGHT = 360;
 const WELCOME_WIDTH = 540;
 const WELCOME_HEIGHT = 360;
-let welcomeWindowId = null;
-/** 打开引导页的选项页窗口；焦点回到该窗时再把引导页拉到前面 */
-let welcomeHostWindowId = null;
+
+/**
+ * 绑在宿主窗口上的 popup。窗关了就忘掉；焦点回到宿主时，按登记顺序把还开着的第一扇拉到前面。
+ * Prepare 的开窗、等待、失败重试仍在下面，这里只登记它的窗和宿主。
+ * @type {{ id: number | null, host: number | null, onClose?: () => void }[]}
+ */
+const hostBoundPopups = [];
+
+/** @param {(() => void) | undefined} onClose */
+function hostBoundPopup(onClose) {
+  const slot = { id: null, host: null, onClose };
+  hostBoundPopups.push(slot);
+  return slot;
+}
+
+function releaseHostPopup(slot) {
+  if (slot.id == null) return;
+  slot.id = null;
+  slot.host = null;
+  slot.onClose?.();
+}
+
+/** 同时开着时：Prepare、引导页、自动分析询问、受保护页说明。 */
+const initPopup = hostBoundPopup(() => notifyOptionsInitOverlay(false));
+const welcomePopup = hostBoundPopup();
+const autoNudgePopup = hostBoundPopup();
+const restrictedPagePopup = hostBoundPopup();
 
 chrome.windows.onRemoved.addListener((windowId) => {
-  if (windowId !== welcomeWindowId) return;
-  welcomeWindowId = null;
-  welcomeHostWindowId = null;
+  for (const slot of hostBoundPopups) {
+    if (slot.id === windowId) releaseHostPopup(slot);
+  }
 });
 
-/** @param {number | undefined} hostWindowId 选项页标签所在窗口 */
-async function openWelcomeWindow(hostWindowId) {
-  if (typeof hostWindowId !== 'number') throw new Error('Welcome window requires the options window');
-  if (welcomeWindowId != null) {
-    try {
-      await chrome.windows.update(welcomeWindowId, { focused: true });
-      return;
-    } catch {
-      welcomeWindowId = null;
-      welcomeHostWindowId = null;
-    }
+/** 焦点回到打开弹窗时的宿主窗 → 再把弹窗拉到前面。 */
+function focusPopupIfHostFocused(windowId) {
+  if (windowId === chrome.windows.WINDOW_ID_NONE) return;
+  if (hostBoundPopups.some((slot) => slot.id != null && windowId === slot.id)) return;
+  const hit = hostBoundPopups.find(
+    (slot) => slot.id != null && slot.host != null && windowId === slot.host,
+  );
+  if (hit) void chrome.windows.update(hit.id, { focused: true }).catch(() => {});
+}
+
+chrome.windows.onFocusChanged.addListener(focusPopupIfHostFocused);
+
+/** 已开着就只聚焦。窗已经没了则清掉登记，调用方再开一扇。不走 onClose。 */
+async function focusHeld(slot) {
+  if (slot.id == null) return false;
+  try {
+    await chrome.windows.update(slot.id, { focused: true });
+    return true;
+  } catch {
+    slot.id = null;
+    slot.host = null;
+    return false;
   }
-  const host = await chrome.windows.get(hostWindowId);
+}
+
+/**
+ * @param {{ url: string, width: number, height: number, host?: chrome.windows.Window | null }} spec
+ * 坐标被拒时去掉 left/top 再开一次。
+ */
+async function createClampedPopup(spec) {
   /** @type {chrome.windows.CreateData} */
   const create = {
-    url: chrome.runtime.getURL('welcome.html'),
+    url: spec.url,
     type: 'popup',
-    width: WELCOME_WIDTH,
-    height: WELCOME_HEIGHT,
+    width: spec.width,
+    height: spec.height,
     focused: true,
   };
-  const pos = IH_initWindowBounds.clampPopupToHost(host, WELCOME_WIDTH, WELCOME_HEIGHT);
+  const pos = spec.host
+    ? IH_initWindowBounds.clampPopupToHost(spec.host, spec.width, spec.height)
+    : null;
   if (pos) {
     create.left = pos.left;
     create.top = pos.top;
@@ -401,40 +682,60 @@ async function openWelcomeWindow(hostWindowId) {
     delete create.top;
     win = await chrome.windows.create(create);
   }
-  if (win?.id == null) throw new Error('Welcome window create returned no id');
-  welcomeWindowId = win.id;
-  welcomeHostWindowId = hostWindowId;
+  if (win?.id == null) throw new Error('Popup create returned no id');
+  return win.id;
 }
 
-async function openNudgeWindow(host) {
-  /** @type {chrome.windows.CreateData} */
-  const create = {
-    url: chrome.runtime.getURL('auto-nudge.html') + `?host=${encodeURIComponent(host)}`,
-    type: 'popup',
-    width: NUDGE_WIDTH,
-    height: NUDGE_HEIGHT,
-    focused: true,
-  };
+/** @param {number | undefined} hostWindowId 选项页标签所在窗口 */
+async function openWelcomeWindow(hostWindowId) {
+  if (typeof hostWindowId !== 'number') throw new Error('Welcome window requires the options window');
+  if (await focusHeld(welcomePopup)) return;
+  const id = await createClampedPopup({
+    url: chrome.runtime.getURL('welcome.html'),
+    width: WELCOME_WIDTH,
+    height: WELCOME_HEIGHT,
+    host: await chrome.windows.get(hostWindowId),
+  });
+  welcomePopup.id = id;
+  welcomePopup.host = hostWindowId;
+}
+
+async function openAskWindow(url, hostWindowId) {
+  /** @type {chrome.windows.Window | null} */
+  let host = null;
   try {
-    const browserWin = await chrome.windows.getLastFocused();
-    const pos = IH_initWindowBounds.clampPopupToHost(browserWin, NUDGE_WIDTH, NUDGE_HEIGHT);
-    if (pos) {
-      create.left = pos.left;
-      create.top = pos.top;
-    }
+    host = typeof hostWindowId === 'number'
+      ? await chrome.windows.get(hostWindowId)
+      : await chrome.windows.getLastFocused();
   } catch {
     /* 没有宿主窗口时让浏览器自己放 */
   }
-  try {
-    const win = await chrome.windows.create(create);
-    if (win?.id == null) throw new Error('Auto-nudge window create returned no id');
-  } catch (err) {
-    if (!IH_initWindowBounds.isBoundsError(err) || create.left == null) throw err;
-    delete create.left;
-    delete create.top;
-    const win = await chrome.windows.create(create);
-    if (win?.id == null) throw new Error('Auto-nudge window create returned no id');
-  }
+  return createClampedPopup({
+    url,
+    width: NUDGE_WIDTH,
+    height: NUDGE_HEIGHT,
+    host,
+  });
+}
+
+/** 同一站点已开着就只聚焦。另一个站点够次数时另开一扇，抢焦点跟到新的这扇。 */
+async function openNudgeWindow(host, hostWindowId) {
+  if (autoNudgePopup.site === host && await focusHeld(autoNudgePopup)) return;
+  const id = await openAskWindow(
+    chrome.runtime.getURL('auto-nudge.html') + `?host=${encodeURIComponent(host)}`,
+    hostWindowId,
+  );
+  autoNudgePopup.id = id;
+  autoNudgePopup.host = typeof hostWindowId === 'number' ? hostWindowId : null;
+  autoNudgePopup.site = host;
+}
+
+/** 受保护页：扩展自己的说明窗，不往页面里注入。已开着就只聚焦。 */
+async function openRestrictedPageWindow(hostWindowId) {
+  if (await focusHeld(restrictedPagePopup)) return;
+  const id = await openAskWindow(chrome.runtime.getURL('restricted-page.html'), hostWindowId);
+  restrictedPagePopup.id = id;
+  restrictedPagePopup.host = typeof hostWindowId === 'number' ? hostWindowId : null;
 }
 
 function resetAutoForTab(tabId) {
@@ -446,6 +747,7 @@ function resetAutoForTab(tabId) {
 /**
  * 命中名单的前台、已 complete 的标签即可分析。PDF / file: 不进。
  * 重复触发是幂等的：页内已在跑返回 'busy'、已画好返回 'painted'，都不动它。
+ * 扩展重载后的过期标签静默跳过：不弹刷新、不算失败（用户点图标/菜单才提示）。
  * @param {number} tabId
  */
 async function maybeAutoAnalyze(tabId) {
@@ -466,7 +768,7 @@ async function maybeAutoAnalyze(tabId) {
       const peek = await pageCsPeek(tabId, 'start');
       if (!stillCurrent()) return;
       if (peek.state === 'stale') {
-        await refuseStalePage(tabId);
+        // 旧隔离世界没法再注入。自动分析不弹窗、不记失败。
         return;
       }
       if (peek.state === 'live') {
@@ -488,7 +790,8 @@ async function maybeAutoAnalyze(tabId) {
         clearBadge(tabId);
         return;
       }
-      await setBadgeError(tabId, 'inject');
+      if (after.state === 'stale') return;
+      await setBadgeError(tabId, 'inject', 'auto');
     } catch (err) {
       if (!stillCurrent()) return;
       if (String(err?.message || err).includes('navigation superseded')) {
@@ -496,7 +799,7 @@ async function maybeAutoAnalyze(tabId) {
         return;
       }
       console.error('[Info Highlight] auto inject failed', err);
-      await setBadgeError(tabId, 'inject');
+      await setBadgeError(tabId, 'inject', 'auto');
     }
   } finally {
     autoAnalyzeInFlight.delete(tabId);
@@ -504,11 +807,11 @@ async function maybeAutoAnalyze(tabId) {
 }
 
 chrome.action.onClicked.addListener((tab) => {
-  void activateTab(tab);
+  void activateTab(tab, false, '', 'icon');
 });
 
 chrome.tabs.onActivated.addListener(({ tabId }) => {
-  void syncAutoMenu(tabId);
+  syncTabContextMenus(tabId);
   void maybeAutoAnalyze(tabId);
 });
 
@@ -516,7 +819,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   // 整页开始加载才 reset。地址变了或 DOM 变了不自动跟。
   if (changeInfo.status === 'loading') resetAutoForTab(tabId);
   if (tab.active && (changeInfo.url || changeInfo.status === 'loading' || changeInfo.status === 'complete')) {
-    void syncAutoMenu(tabId);
+    syncTabContextMenus(tabId);
   }
   if (changeInfo.status === 'complete') void maybeAutoAnalyze(tabId);
 });
@@ -536,6 +839,7 @@ function buildContextMenus() {
       contexts: ['page', 'action'],
       documentUrlPatterns: ['http://*/*', 'https://*/*'],
     });
+    IH_library.createMenu();
     chrome.contextMenus.create({
       id: 'ih-auto-separator',
       type: 'separator',
@@ -551,6 +855,12 @@ function buildContextMenus() {
       id: FORCE_MENU_ID,
       title: FORCE_ANALYZE_MENU_TITLE,
       contexts: ['page', 'action'],
+    });
+    chrome.contextMenus.create({
+      id: EXTRACT_PREVIEW_MENU_ID,
+      title: extractPreviewMenuTitle(false),
+      contexts: ['page', 'action'],
+      documentUrlPatterns: ['http://*/*', 'https://*/*'],
     });
     for (const m of IH_localState.CLOUD_MODELS) {
       chrome.contextMenus.create({
@@ -569,6 +879,10 @@ function buildContextMenus() {
       title: tr('Options'),
       contexts: ['page', 'action'],
     });
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const id = tabs[0]?.id;
+      if (typeof id === 'number') syncTabContextMenus(id);
+    });
   });
 }
 
@@ -579,6 +893,7 @@ chrome.runtime.onInstalled.addListener((details) => {
 
   void IL_optionsAttention.onInstalled(details, IL_OPTIONS_CATALOG);
   void armFadeDefaultNotice(details);
+  void applyFadeMinDefault(details);
   IL_setActionIconDotted(true);
   IL_reportInstallOrUpdate(details, EXTENSION_ID);
   if (details.reason === 'install') {
@@ -597,16 +912,24 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (!tab?.id) return;
   // 用过菜单也算用过插件；Chrome 右键工具栏图标本身不发事件，只能在这里灭蓝点
   IL_setActionIconDotted(false);
-  if (info.menuItemId === CONTEXT_MENU_ID) void activateTab(tab);
-  else if (info.menuItemId === FORCE_MENU_ID) void activateTab(tab, true);
+  if (info.menuItemId === CONTEXT_MENU_ID) void activateTab(tab, false, '', 'menu');
+  else if (info.menuItemId === FORCE_MENU_ID) void activateTab(tab, true, '', 'rerun');
   else if (typeof info.menuItemId === 'string' && info.menuItemId.startsWith(FORCE_MODEL_PREFIX)) {
     const modelId = info.menuItemId.slice(FORCE_MODEL_PREFIX.length);
     if (!knownCloudModel(modelId)) return;
-    void activateTab(tab, true, modelId);
+    void activateTab(tab, true, modelId, 'rerun');
   }
   // permissions.request 要手势，toggleAutoSite 里首句就发，别在这之前 await
   else if (info.menuItemId === AUTO_MENU_ID) void toggleAutoSite(info, tab.id, tab.url);
+  else if (info.menuItemId === EXTRACT_PREVIEW_MENU_ID) void toggleExtractPreviewOnTab(tab);
+  else if (IH_library.handleClick(info, tab)) return;
 });
+
+chrome.permissions.onAdded.addListener(() => {
+  void settleAutoSitePending();
+  void IH_autoSites.pruneLegacyOriginsIfAllSites();
+});
+void settleAutoSitePending();
 
 const ERROR_BODY_SNIPPET = 500;
 
@@ -615,21 +938,88 @@ function isJsonContentType(contentTypeHeader) {
   return ct === 'application/json' || ct.endsWith('+json');
 }
 
-/** POST /api/analyze；站点成功体无 success=true，仅 success===false 视为失败。冷启动时这一次请求等到返回。 */
-async function postAnalyze(text, model, tabId) {
-  const url = analyzeUrl();
+function analyzeRequestBody(model, text) {
+  return JSON.stringify({
+    model,
+    text,
+    privacy_mode: true,
+    ...(IH_CONFIG.modalDebug ? { modal_debug: true } : {}),
+  });
+}
+
+/** SW 这次启动后读余额接口的那一次；失败清空，下次再读。 */
+let creditSync = null;
+
+/**
+ * SW 每次启动读一次余额接口，更新余额和是否限时免费。
+ * 余额未知时等它读完，避免零额度用户首段误走付费再 402；读不到仍未知则继续走付费路径。
+ */
+async function syncCreditState() {
+  creditSync ||= readCreditBalance()
+    .then((data) => persistCreditBalance(data.credit_balance))
+    .catch(() => { creditSync = null; });
+  if ((await ensureLastCreditBalance()) == null) await creditSync;
+}
+
+/** SYNC: analyzeRun.js / postUsageReport — 用量上报 engine 取值 */
+const USAGE_ENGINE_LOCAL = 'local';
+const USAGE_ENGINE_CLOUD_FREE = 'cloud-free';
+const USAGE_ENGINE_CLOUD_CREDIT = 'cloud-credit';
+const USAGE_ENGINE_CLOUD_SELF = 'cloud-self-api';
+
+const USAGE_ENGINES = new Set([
+  USAGE_ENGINE_LOCAL,
+  USAGE_ENGINE_CLOUD_FREE,
+  USAGE_ENGINE_CLOUD_CREDIT,
+  USAGE_ENGINE_CLOUD_SELF,
+]);
+
+function isUsageEngine(engine) {
+  return USAGE_ENGINES.has(engine);
+}
+
+/** 已知余额为 0 走免费并在本机排队。余额未知或还有余点直接走付费。路径在发起时定一次。 */
+async function postAnalyze(text, model, tabId, waitUi) {
+  await IL_ensureApiBaseLoaded();
+  await notifyAnalyzeNetworkWait(tabId, waitUi);
+  if (!IL_useFacadeV2Analyze()) {
+    if (!IL_ANALYZE_API_BASE) {
+      throw new Error('Custom cloud API URL is missing or invalid. Open extension settings to fix it.');
+    }
+    const raw = await postCloudAnalyze('/api/analyze', text, model, false, tabId);
+    return { ...raw, usageEngine: USAGE_ENGINE_CLOUD_SELF };
+  }
+  await syncCreditState();
+  const free = (await ensureLastCreditBalance()) === 0;
+  if (free) {
+    await maybeNotifyFacadePolicyNotice(tabId);
+    const raw = await runFreeAnalyze(
+      tabId,
+      () => postCloudAnalyze('/v2/analyze-free', text, model, false, tabId),
+    );
+    return { ...raw, usageEngine: USAGE_ENGINE_CLOUD_FREE };
+  }
+  const paid = await postCloudAnalyze('/v2/analyze', text, model, true, tabId);
+  if (!paid?.depleted) return { ...paid, usageEngine: USAGE_ENGINE_CLOUD_CREDIT };
+  await persistCreditBalance(Number.isInteger(paid.credit_balance) ? paid.credit_balance : 0);
+  const got = await postAnalyze(text, model, tabId, waitUi);
+  return { ...got, notice: got.notice || paid.notice };
+}
+
+async function postCloudAnalyze(path, text, model, withKey, tabId) {
+  await IL_ensureApiBaseLoaded();
+  const init = {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: analyzeRequestBody(model, text),
+  };
   let res;
   try {
-    res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model,
-        text,
-        privacy_mode: true,
-        ...(IH_CONFIG.modalDebug ? { modal_debug: true } : {}),
-      }),
-    });
+    // 免费档也带 Bearer（与付费同 key）；门面暂不处理，预留按 key 限流。自定义 /api/analyze 仍不带 key。
+    const attachBearer = withKey || path === '/v2/analyze-free';
+    res = attachBearer
+      ? await fetchWithApiKey(path, init)
+      : await fetch(`${IL_ANALYZE_API_BASE}${path}`, init);
   } catch (err) {
     const msg = String(err?.message || err);
     if (/Failed to fetch|NetworkError|ERR_CONNECTION/i.test(msg)) {
@@ -637,7 +1027,263 @@ async function postAnalyze(text, model, tabId) {
     }
     throw err;
   }
-  return await readAnalyzeResponse(res);
+  // 门面只在余额不足 1 点时回 402，由 postAnalyze 转免费接口；额度文案也由门面 notice 带来
+  if (withKey && res.status === 402) {
+    const data = await res.json().catch(() => null);
+    const balance = Number.isInteger(data?.credit_balance) ? data.credit_balance : 0;
+    if (Number.isInteger(data?.credit_balance) && data.credit_balance >= 0) {
+      await persistCreditBalance(data.credit_balance);
+    }
+    return { depleted: true, notice: pickAnalyzeNotice(data?.notice), credit_balance: balance };
+  }
+  if (!withKey && res.status === 429) {
+    const data = await res.json().catch(() => null);
+    const err = new Error(FREE_API_RATE_LIMITED);
+    const notice = pickAnalyzeNotice(data?.notice);
+    if (notice) err.notice = notice;
+    throw err;
+  }
+  const data = await readAnalyzeResponse(res);
+  if (Number.isInteger(data?.credit_balance) && data.credit_balance >= 0) {
+    await persistCreditBalance(data.credit_balance);
+  }
+  return { data, notice: pickAnalyzeNotice(data?.notice), credit_balance: data?.credit_balance };
+}
+
+/** 与 page-map analyzeNoticeKey 相同：公告版本 id，文案变则变。 */
+function facadeNoticeId(notice) {
+  if (!notice || typeof notice.zh !== 'string' || typeof notice.en !== 'string') return '';
+  const z = notice.zh.trim();
+  const e = notice.en.trim();
+  return z || e ? `${z}\n${e}` : '';
+}
+
+/** 0 额度走云端免费 API 前：状态条提醒一次当前公告（与选项页 notice 同源，按 id 去重）。 */
+async function maybeNotifyFacadePolicyNotice(tabId) {
+  if (!tabId || !IL_useFacadeV2Analyze()) return;
+  const balance = await ensureLastCreditBalance();
+  if (balance !== 0) return;
+  const stored = await chrome.storage.local.get([BALANCE_NOTICE_KEY, FACADE_NOTICE_SEEN_ID_KEY]);
+  const notice = pickAnalyzeNotice(stored?.[BALANCE_NOTICE_KEY]);
+  const id = facadeNoticeId(notice);
+  if (!id || stored?.[FACADE_NOTICE_SEEN_ID_KEY] === id) return;
+  try {
+    await chrome.tabs.sendMessage(tabId, { type: 'ih-facade-policy-notice', notice });
+  } catch {
+    /* 页未注入或已关 */
+  }
+}
+
+/** 门面分析 notice { zh, en }：格式不对或都空就当没有。插件不自拟文案。 */
+function pickAnalyzeNotice(value) {
+  if (!value || typeof value !== 'object') return undefined;
+  if (typeof value.zh !== 'string' || typeof value.en !== 'string') return undefined;
+  if (!value.zh.trim() && !value.en.trim()) return undefined;
+  return { zh: value.zh, en: value.en };
+}
+
+/** SYNC: userErrors.js / 用量上报 error。免费接口硬上限 429，不再按 Retry-After 重发。 */
+const FREE_API_RATE_LIMITED = 'free api rate limited';
+
+const CREDIT_ORDER_KEY = 'ih_credit_order';
+const CREDIT_PAY_URL_KEY = 'ih_credit_pay_url';
+const CREDIT_BALANCE_KEY = 'ih_credit_balance';
+const BILLING_ENFORCED_KEY = 'ih_billing_enforced';
+/** SYNC: page-map.js — 余额接口通用公告；与选项页 #credits_notice 同源 */
+const BALANCE_NOTICE_KEY = 'ih_balance_notice';
+/** SYNC: page-map.js — 已展示过的公告 id（zh+en 原文），文案变则再弹 */
+const FACADE_NOTICE_SEEN_ID_KEY = 'ih_facade_notice_seen_id';
+
+/** @type {number | null} */
+let lastCreditBalance = null;
+
+async function ensureLastCreditBalance() {
+  if (lastCreditBalance != null) return lastCreditBalance;
+  const stored = await chrome.storage.local.get(CREDIT_BALANCE_KEY);
+  const b = stored?.[CREDIT_BALANCE_KEY];
+  if (Number.isInteger(b) && b >= 0) lastCreditBalance = b;
+  return lastCreditBalance;
+}
+
+/** 云端已结束限免；余额接口仍带 billing_enforced，插件侧恒为 true。 */
+async function readBillingEnforced() {
+  return true;
+}
+
+async function persistCreditBalance(balance) {
+  if (!Number.isInteger(balance) || balance < 0) return;
+  lastCreditBalance = balance;
+  await chrome.storage.local.set({ [CREDIT_BALANCE_KEY]: balance });
+}
+
+const CREDIT_ORDER_RE = /^ih[0-9a-f]{32}$/;
+
+function normalizeCreditOrderAmountKind(raw) {
+  if (raw === 'custom' || raw === 'trial' || raw === 'promo') return raw;
+  return 'pack';
+}
+
+const PROMO_LABEL_MAX_LEN = 32;
+
+function readPromoLabel(raw, amountKind) {
+  if (normalizeCreditOrderAmountKind(amountKind) !== 'promo') return undefined;
+  if (raw == null || raw === '') return undefined;
+  if (typeof raw !== 'string') return undefined;
+  const t = raw.trim().replace(/\s+/g, ' ');
+  if (!t || t.length > PROMO_LABEL_MAX_LEN || /[\x00-\x1f\x7f]/.test(t)) return undefined;
+  return t;
+}
+
+function readCreditOrders(value) {
+  if (!Array.isArray(value) || value.length > 3) return null;
+  const orders = [];
+  for (const row of value) {
+    const orderId = row?.order_id;
+    const credits = row?.order_credits;
+    const amount = row?.amount;
+    const status = row?.payment_status;
+    const refunded = row?.refunded_cents;
+    const createdAt = row?.created_at;
+    const currency = row?.currency;
+    const paymentProvider = row?.payment_provider;
+    if (typeof orderId !== 'string' || !CREDIT_ORDER_RE.test(orderId)) return null;
+    if (!Number.isInteger(credits) || credits <= 0) return null;
+    if (typeof amount !== 'string' || !/^\d+\.\d{2}$/.test(amount)) return null;
+    if (status !== 'pending' && status !== 'paid') return null;
+    if (!Number.isSafeInteger(refunded) || refunded < 0) return null;
+    if (!Number.isSafeInteger(createdAt) || createdAt < 0) return null;
+    const amountKind = normalizeCreditOrderAmountKind(row?.amount_kind);
+    const promoLabel = readPromoLabel(row?.promo_label, amountKind);
+    const entry = {
+      order_id: orderId,
+      order_credits: credits,
+      amount,
+      currency: currency === 'USD' ? 'USD' : 'CNY',
+      payment_provider: paymentProvider === 'waffo' || paymentProvider === 'waffo_cny' ? paymentProvider : 'alipay',
+      payment_status: status,
+      refunded_cents: refunded,
+      created_at: createdAt,
+      amount_kind: amountKind,
+    };
+    if (promoLabel) entry.promo_label = promoLabel;
+    orders.push(entry);
+  }
+  return orders;
+}
+
+async function readCreditCatalog() {
+  const res = await fetchWithApiKey('/v2/credits/catalog?catalog=2', { method: 'GET' });
+  const data = await res.json().catch(() => null);
+  const CNY = data?.CNY;
+  const USD = data?.USD;
+  if (!res.ok || !Array.isArray(CNY) || !Array.isArray(USD) || (!CNY.length && !USD.length)) {
+    throw new Error('Could not start payment.');
+  }
+  return { CNY, USD };
+}
+
+/** @param {string} [apiKey] 不给则用本机 key */
+async function readCreditBalance(apiKey) {
+  const res = await fetchWithApiKey('/v2/credits/balance', { method: 'GET' }, apiKey);
+  const data = await res.json().catch(() => null);
+  const balance = data?.credit_balance;
+  const orders = readCreditOrders(data?.orders);
+  const billingEnforced = data?.billing_enforced;
+  // 门面公告，可选：{ zh, en } 纯文本
+  // 公告格式不对就当没有，不影响额度显示
+  const notice = typeof data?.notice?.zh === 'string' && typeof data?.notice?.en === 'string' ? data.notice : undefined;
+  if (!res.ok || !Number.isInteger(balance) || balance < 0 || !orders || billingEnforced !== true) {
+    throw new Error('Failed to read credits');
+  }
+  await chrome.storage.local.set({ [BILLING_ENFORCED_KEY]: true });
+  if (notice) await chrome.storage.local.set({ [BALANCE_NOTICE_KEY]: notice });
+  else await chrome.storage.local.remove(BALANCE_NOTICE_KEY);
+  return { credit_balance: balance, orders, billing_enforced: true, ...(notice ? { notice } : {}) };
+}
+
+async function storedCreditOrder() {
+  const stored = await chrome.storage.local.get(CREDIT_ORDER_KEY);
+  const orderId = stored?.[CREDIT_ORDER_KEY];
+  return typeof orderId === 'string' && CREDIT_ORDER_RE.test(orderId) ? orderId : null;
+}
+
+async function readStoredCreditPay() {
+  const stored = await chrome.storage.local.get([CREDIT_ORDER_KEY, CREDIT_PAY_URL_KEY]);
+  const orderId = stored?.[CREDIT_ORDER_KEY];
+  const payUrl = readHttpsPayUrl(stored?.[CREDIT_PAY_URL_KEY]);
+  if (!CREDIT_ORDER_RE.test(orderId) || !payUrl) return null;
+  return { order_id: orderId, pay_url: payUrl };
+}
+
+function readHttpsPayUrl(payUrl) {
+  try {
+    const url = new URL(payUrl);
+    if (url.protocol === 'https:') return url.href;
+  } catch {
+    /* ignore */
+  }
+  return '';
+}
+
+async function startCreditPurchase(provider, pack, amountUsd) {
+  const body = { provider };
+  if (typeof pack === 'string' && pack) body.pack = pack;
+  if (typeof amountUsd === 'string' && amountUsd.trim()) body.amount_usd = amountUsd.trim();
+  const res = await fetchWithApiKey('/v2/credits/purchase', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => null);
+  const href = readHttpsPayUrl(data?.pay_url);
+  const orderId = typeof data?.order_id === 'string' ? data.order_id : '';
+  if (!res.ok || !href || !CREDIT_ORDER_RE.test(orderId)) throw new Error('Could not start payment.');
+  await chrome.storage.local.set({ [CREDIT_ORDER_KEY]: orderId, [CREDIT_PAY_URL_KEY]: href });
+  return href;
+}
+
+async function confirmCreditPurchase(orderId) {
+  if (!CREDIT_ORDER_RE.test(orderId)) throw new Error('Could not confirm payment.');
+  const res = await fetchWithApiKey('/v2/credits/purchase/confirm', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ order_id: orderId }),
+  });
+  const data = await res.json().catch(() => null);
+  const balance = data?.credit_balance;
+  const status = data?.payment_status;
+  if (!res.ok || !Number.isInteger(balance) || balance < 0 || (status !== 'paid' && status !== 'pending')) {
+    throw new Error('Could not confirm payment.');
+  }
+  if (status === 'paid' && (await storedCreditOrder()) === orderId) {
+    await chrome.storage.local.remove([CREDIT_ORDER_KEY, CREDIT_PAY_URL_KEY]);
+  }
+  await persistCreditBalance(balance);
+  return { credit_balance: balance, payment_status: status };
+}
+
+async function refreshCreditState() {
+  const orderId = await storedCreditOrder();
+  let confirmFailed = false;
+  if (orderId) {
+    try {
+      await confirmCreditPurchase(orderId);
+    } catch (err) {
+      // 查单失败不挡住读余额，交给选项页在那一行显示
+      console.error('[Info Highlight] confirm credit order', err);
+      confirmFailed = true;
+    }
+  }
+  const state = await readCreditState();
+  return confirmFailed ? { ...state, confirm_failed_order: orderId } : state;
+}
+
+async function readCreditState() {
+  const data = await readCreditBalance();
+  await persistCreditBalance(data.credit_balance);
+  const api_key = await IL_getApiKey();
+  const credit_pay = await readStoredCreditPay();
+  return { ...data, api_key, credit_pay };
 }
 
 async function readAnalyzeResponse(res) {
@@ -699,10 +1345,7 @@ async function ensureOffscreen() {
 
 let localInflight = 0;
 
-/** 已发出、还没进藏页的本机分析。一个标签最多一条。 */
-const localWaiters = [];
-let localDraining = false;
-
+/** 已发出、还没进藏页的本机分析。一个标签最多一条。免费云端另有一条队列。 */
 function pickLocalWaiter(waiters, activeTabId) {
   const i = waiters.findIndex((w) => activeTabId != null && w.tabId === activeTabId);
   return i >= 0 ? i : 0;
@@ -719,30 +1362,48 @@ function focusedTabId() {
  * 同时只放行一条，已在等的激活标签优先。
  * 前台要等上一段回到页面才发下一段，空档里后台最多插进一段，所以前台至少大约一半。
  */
-function runLocalAnalyze(tabId, run) {
-  return new Promise((resolve, reject) => {
-    localWaiters.push({ tabId, run, resolve, reject });
-    void drainLocalAnalyze();
-  });
+function createAnalyzeAdmit() {
+  const waiters = [];
+  let draining = false;
+
+  function run(tabId, job) {
+    return new Promise((resolve, reject) => {
+      waiters.push({ tabId, run: job, resolve, reject });
+      void drain();
+    });
+  }
+
+  async function drain() {
+    if (draining) return;
+    draining = true;
+    try {
+      while (waiters.length) {
+        const activeId = await focusedTabId();
+        const job = waiters.splice(pickLocalWaiter(waiters, activeId), 1)[0];
+        try {
+          job.resolve(await job.run());
+        } catch (err) {
+          job.reject(err);
+        }
+      }
+    } finally {
+      draining = false;
+      if (waiters.length) void drain();
+    }
+  }
+
+  return run;
 }
 
-async function drainLocalAnalyze() {
-  if (localDraining) return;
-  localDraining = true;
-  try {
-    while (localWaiters.length) {
-      const activeId = await focusedTabId();
-      const job = localWaiters.splice(pickLocalWaiter(localWaiters, activeId), 1)[0];
-      try {
-        job.resolve(await job.run());
-      } catch (err) {
-        job.reject(err);
-      }
-    }
-  } finally {
-    localDraining = false;
-    if (localWaiters.length) void drainLocalAnalyze();
-  }
+const admitLocalAnalyze = createAnalyzeAdmit();
+const admitFreeAnalyze = createAnalyzeAdmit();
+
+function runLocalAnalyze(tabId, run) {
+  return admitLocalAnalyze(tabId, run);
+}
+
+function runFreeAnalyze(tabId, run) {
+  return admitFreeAnalyze(tabId, run);
 }
 
 function isOffscreenGone(err) {
@@ -795,10 +1456,21 @@ async function closeOffscreenIfIdle() {
   await destroyOffscreen();
 }
 
-async function dropLocalModel() {
+function statusSpec(st) {
+  return IH_localState.localSpec(IH_localState.onDeviceStatusModelId(st.choice, st.runtime));
+}
+
+async function dropLocalModel(all = false, explicitLocalId) {
   await destroyOffscreen();
-  await IH_localState.dropModelCache();
-  await IH_localState.set({ ready: false });
+  if (all) {
+    await IH_localState.dropModelCache();
+    await IH_localState.set({ readyIds: [] });
+  } else {
+    const st = await IH_localState.get();
+    const id = IH_localState.normalizeLocalId(explicitLocalId) || statusSpec(st).id;
+    await IH_localState.dropModelCache(id);
+    await IH_localState.markReady(id, false);
+  }
   await IH_analyzeCache.dropAll();
 }
 
@@ -812,22 +1484,24 @@ async function cancelLocalInit() {
 }
 
 async function probeAndStore() {
-  let webgpu = await IH_localState.probeWebGPU();
+  const { WEBGPU_BLOCK } = IH_localState;
+  let result;
   if (globalThis.navigator?.gpu == null) {
     const res = await sendToEngine({ cmd: 'probe' });
     if (!res?.ok) throw new Error(res?.error || 'WebGPU probe failed');
-    webgpu = !!res.webgpu;
+    result = {
+      ok: !!res.webgpu,
+      reason: res.webgpu ? null : (res.reason || WEBGPU_BLOCK.device_failed),
+    };
+  } else {
+    result = await IH_localState.probeWebGPU();
   }
-  await IH_localState.set({ webgpuOk: webgpu });
-  return webgpu;
+  return IH_localState.applyWebgpuProbe(result);
 }
 
 /** @type {((engine: string) => void)[]} */
 let initWaiters = [];
 let initGeneration = 0;
-let initWindowId = null;
-/** Prepare 打开时的宿主窗；焦点回到该窗时再把 Prepare 拉到前面 */
-let initHostWindowId = null;
 let offerLock = null;
 let initBusy = false;
 let initCancellable = false;
@@ -840,32 +1514,14 @@ function notifyOptionsInitOverlay(active) {
 }
 
 function clearInitWindowId() {
-  if (initWindowId == null) return;
-  initWindowId = null;
-  initHostWindowId = null;
-  notifyOptionsInitOverlay(false);
+  releaseHostPopup(initPopup);
 }
 
 function assignInitWindowId(id, hostId) {
-  initWindowId = id;
-  initHostWindowId = hostId ?? null;
+  initPopup.id = id;
+  initPopup.host = hostId ?? null;
   notifyOptionsInitOverlay(true);
 }
-
-/** 焦点回到打开弹窗时的宿主窗 → 再把弹窗拉到前面。两个都开着时 Prepare 优先。 */
-function focusPopupIfHostFocused(windowId) {
-  if (windowId === chrome.windows.WINDOW_ID_NONE) return;
-  if (windowId === initWindowId || windowId === welcomeWindowId) return;
-  if (initWindowId != null && initHostWindowId != null && windowId === initHostWindowId) {
-    void chrome.windows.update(initWindowId, { focused: true }).catch(() => {});
-    return;
-  }
-  if (welcomeWindowId != null && welcomeHostWindowId != null && windowId === welcomeHostWindowId) {
-    void chrome.windows.update(welcomeWindowId, { focused: true }).catch(() => {});
-  }
-}
-
-chrome.windows.onFocusChanged.addListener(focusPopupIfHostFocused);
 
 function resolveInitWaiters(engine) {
   const waiters = initWaiters;
@@ -875,18 +1531,16 @@ function resolveInitWaiters(engine) {
 
 async function resolveInitWithoutReady() {
   initGeneration += 1;
-  await IH_localState.set({ ready: false });
   resolveInitWaiters(engineFrom(await IH_localState.get()));
 }
 
 async function refuseLocal() {
   initGeneration += 1;
-  await IH_localState.set({ ready: false });
   resolveInitWaiters('local');
 }
 
 async function abandonInitWindow() {
-  const id = initWindowId;
+  const id = initPopup.id;
   clearInitWindowId();
   if (id == null) return;
   try {
@@ -900,7 +1554,7 @@ async function createInitPopupWindow(create, hostId) {
   const win = await chrome.windows.create(create);
   if (win?.id == null) throw new Error('Init window create returned no id');
   assignInitWindowId(win.id, hostId);
-  if (create.left == null || create.top == null) return initWindowId;
+  if (create.left == null || create.top == null) return initPopup.id;
   try {
     await chrome.windows.update(win.id, { left: create.left, top: create.top, focused: true });
   } catch (err) {
@@ -911,15 +1565,15 @@ async function createInitPopupWindow(create, hostId) {
       if (!IH_initWindowBounds.isBoundsError(err2)) throw err2;
     }
   }
-  return initWindowId;
+  return initPopup.id;
 }
 
 async function openInitWindow() {
-  if (initWindowId != null) {
+  if (initPopup.id != null) {
     try {
-      await chrome.windows.update(initWindowId, { focused: true });
+      await chrome.windows.update(initPopup.id, { focused: true });
       notifyOptionsInitOverlay(true);
-      return initWindowId;
+      return initPopup.id;
     } catch {
       clearInitWindowId();
     }
@@ -976,10 +1630,11 @@ async function openInitAndWait() {
       void (async () => {
         const st = await IH_localState.get();
         // 下载中关掉（Hide）继续后台；已就绪则只关窗。
-        // 仅本机：关窗等同拒绝，这次分析不再等。Auto / 云端不改偏好。
-        if (st.ready || initBusy) return;
+        // 选了本机：关窗等同拒绝，这次分析不再等。
+        const localId = IH_localState.onDeviceStatusModelId(st.choice, st.runtime);
+        if (st.readyIds.includes(localId) || initBusy) return;
         if (initWaiters.length === 0) return;
-        if (st.pref === IH_localState.PREF_LOCAL) {
+        if (IH_localState.choiceById(st.choice).local) {
           await refuseLocal();
           return;
         }
@@ -990,16 +1645,22 @@ async function openInitAndWait() {
   });
 }
 
-async function maybeOfferInitOnce() {
+async function maybeOfferInitOnce(prepare = false) {
   const st = await IH_localState.get();
-  if (st.ready) return;
+  const localId = prepare
+    ? IH_localState.localRuntimeModelId(st.runtime)
+    : IH_localState.onDeviceStatusModelId(st.choice, st.runtime);
+  if (st.readyIds.includes(localId)) return;
   if (st.webgpuOk === false) return;
   let webgpu;
   try {
     webgpu = await probeAndStore();
   } catch (err) {
     console.warn('[Info Highlight] WebGPU probe failed', err);
-    await IH_localState.set({ webgpuOk: false });
+    await IH_localState.set({
+      webgpuOk: false,
+      webgpuBlockReason: IH_localState.WEBGPU_BLOCK.probe_failed,
+    });
     return;
   }
   if (!webgpu) return;
@@ -1014,56 +1675,68 @@ async function maybeOfferInitOnce() {
   }
 }
 
-/** prepare：选项页点 Prepare。否则只有「仅本机」且权重未就绪才问。Auto 不弹。 */
+/** prepare：选项页点 Prepare。否则只有选了本机且权重未就绪才问。 */
 async function maybeOfferInit(prepare = false) {
   if (!prepare) {
     const st = await IH_localState.get();
-    if (st.pref !== IH_localState.PREF_LOCAL) return;
+    if (!IH_localState.choiceById(st.choice).local) return;
   }
   if (!offerLock) {
-    offerLock = maybeOfferInitOnce().finally(async () => {
+    offerLock = maybeOfferInitOnce(prepare).finally(async () => {
       offerLock = null;
       const st = await IH_localState.get();
-      if (!st.ready) await closeOffscreenIfIdle();
+      const localId = IH_localState.onDeviceStatusModelId(st.choice, st.runtime);
+      if (!st.readyIds.includes(localId)) await closeOffscreenIfIdle();
     });
   }
   return offerLock;
 }
 
 function engineFrom(st) {
-  if (st.pref === IH_localState.PREF_CLOUD) return 'cloud';
-  if (st.pref === IH_localState.PREF_LOCAL) return 'local';
-  return st.ready && st.webgpuOk !== false ? 'local' : 'cloud';
+  return IH_localState.choiceById(st.choice).local ? 'local' : 'cloud';
 }
+
+const choiceReady = IH_localState.migrate().then((dropCache) => {
+  if (dropCache) return IH_analyzeCache.dropAll();
+});
 
 /**
  * @returns {Promise<{ tokens: unknown[], model: string, engine: 'local' | 'cloud' }>}
  */
-async function fetchTokensWithAutoFallback(st, forceCloud, text, tabId, cloudModel) {
-  const model = cloudModel || st.cloudModel;
-  const primary = forceCloud ? 'cloud' : engineFrom(st);
-  if (primary === 'cloud') {
-    const got = await fetchTokens('cloud', text, model, tabId);
-    return { ...got, engine: 'cloud' };
-  }
+/** @typedef {{ waitGen: number, armCloudWait: boolean }} AnalyzeWaitUi */
+
+async function notifyAnalyzeNetworkWait(tabId, waitUi) {
+  if (!waitUi || !Number.isInteger(tabId) || tabId < 0) return;
   try {
-    const got = await fetchTokens('local', text, model, tabId);
-    return { ...got, engine: 'local' };
-  } catch (err) {
-    if (forceCloud || st.pref !== IH_localState.PREF_AUTO) throw err;
-    if (IH_userErrors.isGpuRelated(err?.message || err)) await IH_localState.set({ webgpuOk: false });
-    const got = await fetchTokens('cloud', text, model, tabId);
-    return { ...got, engine: 'cloud' };
+    await chrome.tabs.sendMessage(tabId, {
+      type: 'ih-analyze-network-wait',
+      waitGen: waitUi.waitGen,
+      armCloudWait: !!waitUi.armCloudWait,
+    });
+  } catch {
+    /* 页已关或未注入 */
   }
 }
 
-async function resolveEngine() {
-  return engineFrom(await IH_localState.get());
+async function fetchTokensForChoice(st, forceCloud, text, tabId, cloudModel, waitUi) {
+  const selected = IH_localState.choiceById(st.choice);
+  const model = cloudModel || selected.cloudModel;
+  const useLocal = !forceCloud && selected.local;
+  const got = await fetchTokens(useLocal ? USAGE_ENGINE_LOCAL : 'cloud', text, model, tabId, waitUi);
+  return { ...got, engine: got.usageEngine || USAGE_ENGINE_LOCAL };
 }
 
 async function initEngine() {
   const st = await IH_localState.get();
-  return sendToEngine({ cmd: 'init', hub: st.hub });
+  const spec = statusSpec(st);
+  return sendToEngine({
+    cmd: 'init',
+    hub: st.hub,
+    localId: spec.id,
+    hubId: IH_localState.hubRepoId(st.hub, spec),
+    dtype: spec.dtype,
+    family: spec.family,
+  });
 }
 
 /** 选项页在开着时会实时收 ih-local-progress；这段静默重载完了也要报一声，否则页面卡在「正在下载」。 */
@@ -1071,13 +1744,16 @@ function notifyInitOutcome(outcome) {
   chrome.runtime.sendMessage({ type: 'ih-local-init-outcome', outcome }).catch(() => {});
 }
 
-async function fetchTokens(engine, text, cloudModel, tabId) {
-  if (engine === 'local') {
+async function fetchTokens(engine, text, cloudModel, tabId, waitUi) {
+  if (engine === USAGE_ENGINE_LOCAL) {
+    await notifyAnalyzeNetworkWait(tabId, waitUi);
     localInflight += 1;
     try {
+      const st = await IH_localState.get();
+      const spec = statusSpec(st);
       const status = await sendToEngine({ cmd: 'status' });
       if (!status?.ok) throw new Error(status?.error || 'local engine status failed');
-      if (!status.loaded) {
+      if (!status.loaded || status.localId !== spec.id) {
         let loaded;
         try {
           loaded = await initEngine();
@@ -1088,49 +1764,64 @@ async function fetchTokens(engine, text, cloudModel, tabId) {
       }
       const res = await runLocalAnalyze(tabId, () => sendToEngine({ cmd: 'analyze', text }));
       if (!res?.ok) throw new Error(res?.error || 'local analyze failed');
+      if (globalThis.IH_CONFIG?.localModelDebug && res.result?.metrics) {
+        console.info('[IH local analyze]', res.result.metrics);
+      }
       const tokens = res.result?.bpe_strings;
       if (!Array.isArray(tokens)) throw new Error('local analyze returned no tokens');
       const device = typeof res.result?.device === 'string' ? res.result.device.trim() : '';
-      return { tokens, model: IH_localState.MODEL_ID, device };
+      return { tokens, model: spec.id, device };
     } finally {
       localInflight -= 1;
     }
   }
-  const data = await postAnalyze(text, cloudModel, tabId);
+  const { data, notice, credit_balance, usageEngine } = await postAnalyze(text, cloudModel, tabId, waitUi);
   const tokens = data?.result?.bpe_strings;
   if (!Array.isArray(tokens)) throw new Error('Analyze returned no tokens');
   const raw = data?.result?.model;
   const model = typeof raw === 'string' && raw.trim() ? raw.trim() : cloudModel;
   const device = typeof data?.result?.device === 'string' ? data.result.device.trim() : '';
-  return { tokens, model, device };
+  return { tokens, model, device, notice, credit_balance, usageEngine };
 }
 
-async function handleAnalyze(text, skipCache, forceCloud, tabId, cloudModel) {
+async function handleAnalyze(text, skipCache, forceCloud, tabId, cloudModel, waitUi) {
+  await choiceReady;
   const pinned = knownCloudModel(cloudModel);
   if (pinned) forceCloud = true;
   if (!forceCloud) await maybeOfferInit();
   const st = await IH_localState.get();
+  const selected = IH_localState.choiceById(st.choice);
   if (!forceCloud) {
     const blocked = IH_userErrors.localOnlyBlock(st);
     if (blocked) throw new Error(blocked);
   }
-  let engine = forceCloud ? 'cloud' : engineFrom(st);
+  let engine = forceCloud || !selected.local ? USAGE_ENGINE_CLOUD_CREDIT : USAGE_ENGINE_LOCAL;
   let inferred = false;
-  let model = engine === 'local' ? IH_localState.MODEL_ID : (pinned || st.cloudModel);
+  let model = engine === USAGE_ENGINE_LOCAL
+    ? statusSpec(st).id
+    : (pinned || selected.cloudModel);
   let device = '';
   let tokens;
+  let notice;
+  let credit_balance;
   try {
     tokens = await IH_analyzeCache.tokens(text, async () => {
       inferred = true;
-      const got = await fetchTokensWithAutoFallback(st, forceCloud, text, tabId, pinned);
+      const got = await fetchTokensForChoice(st, forceCloud, text, tabId, pinned, waitUi);
       if (got.model) model = got.model;
       if (got.device) device = got.device;
       engine = got.engine;
+      if (got.notice) ({ notice, credit_balance } = got);
       return got.tokens;
     }, { skip: !!skipCache || !!pinned });
   } catch (err) {
-    if (!forceCloud && st.pref === IH_localState.PREF_LOCAL) {
-      if (IH_userErrors.isGpuRelated(err?.message || err)) await IH_localState.set({ webgpuOk: false });
+    if (!forceCloud && selected.local) {
+      if (IH_userErrors.isGpuRelated(err?.message || err)) {
+        await IH_localState.set({
+          webgpuOk: false,
+          webgpuBlockReason: IH_localState.WEBGPU_BLOCK.runtime_failed,
+        });
+      }
       throw new Error(IH_userErrors.localOnlyFailure(err));
     }
     throw err;
@@ -1146,6 +1837,8 @@ async function handleAnalyze(text, skipCache, forceCloud, tabId, cloudModel) {
     },
     inferred,
     engine,
+    notice,
+    credit_balance,
   };
 }
 
@@ -1158,7 +1851,7 @@ function clampDurationMs(v) {
   return Math.min(Math.round(n), MAX_DURATION_MS);
 }
 
-/** 阶段性调试：分析结束 10s 后 offscreen 仍在（可随门面通道一起删除）。 */
+/** 阶段性调试：分析结束闲置超时后 offscreen 仍在（可随门面通道一起删除）。 */
 async function postLocalEngineLinger(payload) {
   const body = {
     extension: EXTENSION_ID,
@@ -1178,7 +1871,7 @@ async function postLocalEngineLinger(payload) {
 }
 
 /**
- * 上一段结束后闲置 10s：关藏页。正在推理/初始化/offer 则上报后不动。
+ * 上一段结束后闲置达到选项中的超时：关藏页。正在推理/初始化/offer 则上报后不动。
  */
 async function handleLinger(msg) {
   if (!(await hasOffscreen())) return;
@@ -1212,9 +1905,12 @@ async function readOptionsSnapshot() {
   const webgpu = st.webgpuOk;
   return {
     ih_article_only: IH_optionStored('ih_article_only', raw.ih_article_only),
+    ih_dynamic_track: IH_optionStored('ih_dynamic_track', raw.ih_dynamic_track),
+    ih_from_viewport: IH_optionStored('ih_from_viewport', raw.ih_from_viewport),
     show_progress: IH_optionStored('show_progress', raw.show_progress),
     show_token_tip: IH_optionStored('show_token_tip', raw.show_token_tip),
     ih_word_merge: IH_optionStored('ih_word_merge', raw.ih_word_merge),
+    ih_library_close_tab: IH_optionStored('ih_library_close_tab', raw.ih_library_close_tab),
     ih_paint_style: prefs.paintStyle,
     ih_highlight_color: prefs.highlightColor,
     ih_text_color: prefs.textColor,
@@ -1224,11 +1920,10 @@ async function readOptionsSnapshot() {
     ih_fade_norm_pct: prefs.fadeNormPct,
     ih_two_tier: prefs.twoTier,
     ih_highlight_threshold_pct: prefs.thresholdPct,
-    ih_analyze_pref: st.pref,
-    ih_cloud_model: st.cloudModel,
+    [IH_localState.KEYS.choice]: st.choice,
     ih_model_hub: st.hub,
     ih_webgpu_ok: webgpu === true ? true : webgpu === false ? false : null,
-    ih_local_ready: st.ready === true,
+    ih_local_ready: st.ready,
     auto_sites: sites.length,
   };
 }
@@ -1245,29 +1940,29 @@ async function changedOptionsSnapshot() {
 }
 
 async function postUsageReport(body) {
-  let engine = body?.engine;
-  if (engine !== 'local' && engine !== 'cloud') {
-    engine = await resolveEngine();
-  }
+  const engine = isUsageEngine(body?.engine) ? body.engine : null;
   const outcome = body?.outcome;
   if (outcome !== 'ok' && outcome !== 'failed' && outcome !== 'cancelled') return;
   const segments = Math.max(0, Math.min(512, Number(body?.segments) || 0));
-  if (segments < 1) return;
   const segments_ok = Math.max(0, Math.min(segments, Number(body?.segments_ok) || 0));
   const cached = Math.max(0, Math.min(segments, Number(body?.cached) || 0));
   const duration_ms = clampDurationMs(body?.duration_ms);
   const client_id = await IL_getClientId().catch(() => null);
   const model = typeof body?.model === 'string' ? body.model.trim().slice(0, 64) : '';
+  const trigger = typeof body?.trigger === 'string' && body.trigger.trim()
+    ? body.trigger.trim()
+    : 'other';
   const payload = {
     extension: EXTENSION_ID,
     version: chrome.runtime.getManifest().version,
-    engine,
     outcome,
+    trigger,
     segments,
     segments_ok,
     cached,
     duration_ms,
   };
+  if (engine) payload.engine = engine;
   if (model) payload.model = model;
   if (client_id) payload.client_id = client_id;
   if (outcome === 'failed') {
@@ -1282,32 +1977,70 @@ async function postUsageReport(body) {
   if (options) await chrome.storage.local.set({ [OPTIONS_REPORTED_KEY]: options });
 }
 
-const AUTHOR_NOTE_MESSAGE_MAX = 4000;
-const AUTHOR_NOTE_CONTACT_MAX = 200;
-
-/** 选项页 About 留言。只带正文、可选联系方式和 client_id，不带页面。 */
-async function postAuthorNote(msg) {
-  const message = String(msg?.message ?? '').trim().slice(0, AUTHOR_NOTE_MESSAGE_MAX);
-  if (!message) throw new Error('Missing message');
-  const contact = String(msg?.contact ?? '').trim().slice(0, AUTHOR_NOTE_CONTACT_MAX);
-  const client_id = await IL_getClientId();
-  if (!client_id) throw new Error('Missing client id');
+async function postEngagementNudgeReport(msg) {
+  const allowed = new Set(['later', 'feedback', 'review', 'dont_show_again']);
+  const action = typeof msg?.action === 'string' ? msg.action.trim() : '';
+  if (!allowed.has(action)) return;
   const body = {
-    message,
+    event: 'engagement_nudge',
     extension: EXTENSION_ID,
-    extension_version: chrome.runtime.getManifest().version,
-    client_id,
+    version: chrome.runtime.getManifest().version,
+    action,
+    success_total: Math.max(0, Math.floor(Number(msg?.success_total) || 0)),
+    prompt_index: Math.max(0, Math.floor(Number(msg?.prompt_index) || 0)),
   };
-  if (contact) body.contact = contact;
-  const res = await fetch(`${IL_API_BASE}/api/extension-feedback`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+  const client_id = await IL_getClientId().catch(() => null);
+  if (client_id) body.client_id = client_id;
+  IL_postKeepalive('/api/extension-usage', body);
+}
+
+/** 选项页点「购买额度」：经用量通道报一次，带 client_id 和当时是否限时免费（没读到过为 null）。 */
+async function postCreditsAddClick() {
+  const body = {
+    extension: EXTENSION_ID,
+    version: chrome.runtime.getManifest().version,
+    event: 'credits_add_click',
+    billing_enforced: await readBillingEnforced(),
+  };
+  const client_id = await IL_getClientId().catch(() => null);
+  if (client_id) body.client_id = client_id;
+  IL_postKeepalive('/api/extension-usage', body);
+}
+
+/** 匿名网站域名。触发方式与用量上报相同；不带 client_id、路径和正文。 */
+function postAnonymousSiteDomain(body) {
+  if (IH_CONFIG.skipAnonymousSiteDomain) return;
+  const outcome = body?.outcome;
+  if (outcome !== 'ok' && outcome !== 'failed' && outcome !== 'cancelled' && outcome !== 'empty') return;
+  const trigger = typeof body?.trigger === 'string' && body.trigger.trim()
+    ? body.trigger.trim()
+    : 'other';
+  const host = typeof body?.host === 'string' ? body.host.trim().toLowerCase() : '';
+  const kind = typeof body?.kind === 'string' ? body.kind.trim() : '';
+  const kinds = new Set(['html', 'pdf', 'txt', 'md', 'other']);
+  IL_postKeepalive('/api/anonymous-site-domain', {
+    host: host && host.length <= 253 && !/[/?#@\s]/.test(host) ? host : 'unknown',
+    chars: Math.max(0, Math.round(Number(body?.chars) || 0)),
+    blocks: Math.max(0, Math.round(Number(body?.blocks) || 0)),
+    outcome,
+    kind: kinds.has(kind) ? kind : 'other',
+    trigger,
+    version: chrome.runtime.getManifest().version,
   });
-  const data = await res.json().catch(() => null);
-  if (!res.ok || !data?.success || data.stored === false) {
-    throw new Error('Could not send');
+}
+
+/** 入口拦住、尚未抽出正文：仍走上面那条上报。 */
+async function postAnonymousSiteDomainForTab(tabId, trigger) {
+  let href = '';
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    href = typeof tab?.url === 'string' ? tab.url : '';
+  } catch {
+    /* 标签可能已关 */
   }
+  const classify = globalThis.IH_anonymousSiteDomain;
+  if (!classify?.blockedAttempt) return;
+  postAnonymousSiteDomain(classify.blockedAttempt(href, trigger));
 }
 
 async function postLocalInitReport({ outcome, duration_ms, error }) {
@@ -1323,6 +2056,7 @@ async function postLocalInitReport({ outcome, duration_ms, error }) {
     outcome,
     duration_ms: Math.max(0, Math.round(Number(duration_ms) || 0)),
     hub,
+    model: IH_localState.hubRepoId(st.hub, statusSpec(st)),
   };
   if (outcome !== 'ok' && error) body.error = String(error).slice(0, 500);
   const client_id = await IL_getClientId().catch(() => null);
@@ -1331,6 +2065,7 @@ async function postLocalInitReport({ outcome, duration_ms, error }) {
 }
 
 async function handleAgree() {
+  await choiceReady;
   const gen = initGeneration;
   const t0 = Date.now();
   let outcome = 'ok';
@@ -1347,11 +2082,12 @@ async function handleAgree() {
     const res = await initEngine();
     initCancellable = false;
     if (!res?.ok) throw new Error(res?.error || 'local model init failed');
+    if (globalThis.IH_CONFIG?.localModelDebug && res.metrics) {
+      console.info('[IH local init]', res.metrics);
+    }
     const st = await IH_localState.get();
-    const pref = st.pref === IH_localState.PREF_CLOUD ? IH_localState.PREF_AUTO : st.pref;
-    await IH_localState.set({ pref, ready: true });
-    await IH_analyzeCache.dropAll();
-    resolveInitWaiters('local');
+    await IH_localState.markReady(statusSpec(st).id, true);
+    resolveInitWaiters(engineFrom(st));
   } catch (err) {
     const cancelled = gen !== initGeneration || String(err?.message || err) === 'Cancelled';
     outcome = cancelled ? 'cancelled' : 'failed';
@@ -1366,10 +2102,14 @@ async function handleAgree() {
 }
 
 async function handleStatus() {
+  await choiceReady;
   try {
     await probeAndStore();
   } catch {
-    await IH_localState.set({ webgpuOk: false });
+    await IH_localState.set({
+      webgpuOk: false,
+      webgpuBlockReason: IH_localState.WEBGPU_BLOCK.probe_failed,
+    });
     await closeOffscreenIfIdle();
     return IH_localState.get();
   }
@@ -1384,6 +2124,7 @@ async function handleStatus() {
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (IL_pdfSw.handleMessage(msg, sender, sendResponse)) return true;
+  if (IH_library.handleRuntimeMessage(msg, sender, sendResponse)) return true;
   if (
     msg?.type === 'ih-local-engine'
     || msg?.type === 'ih-local-progress'
@@ -1402,7 +2143,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg?.type === 'ih-open-auto-nudge') {
     const host = IH_autoSites.parseHost(msg.host || '');
     if (host && !host.includes('*')) {
-      void openNudgeWindow(host).finally(() => sendResponse());
+      void openNudgeWindow(host, sender.tab?.windowId).finally(() => sendResponse());
       return true;
     }
     return;
@@ -1424,32 +2165,32 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   if (msg?.type === 'ih-local-status') {
     handleStatus()
-      .then((data) => sendResponse({ ok: true, ...data, initOverlay: initWindowId != null }))
+      .then((data) => sendResponse({ ok: true, ...data, initOverlay: initPopup.id != null }))
       .catch((err) => sendResponse({ ok: false, error: String(err?.message || err) }));
     return true;
   }
-  if (msg?.type === 'ih-local-set-pref') {
-    const pref = IH_localState.normalizePref(msg.pref);
+  if (msg?.type === 'ih-local-set-choice') {
+    let choice;
+    try {
+      choice = IH_localState.choiceById(msg.id);
+    } catch (err) {
+      sendResponse({ ok: false, error: String(err?.message || err) });
+      return;
+    }
     (async () => {
-      if (pref === IH_localState.PREF_LOCAL) {
+      await choiceReady;
+      if (choice.local) {
         const webgpu = await probeAndStore();
         if (!webgpu) throw new Error(IH_userErrors.setLocalPrefBlocked());
       }
-      const prev = await resolveEngine();
-      await IH_localState.set({ pref });
-      if ((await resolveEngine()) !== prev) await IH_analyzeCache.dropAll();
-      if (pref === IH_localState.PREF_LOCAL) await maybeOfferInit();
-      sendResponse({ ok: true, pref });
-    })().catch((err) => sendResponse({ ok: false, error: String(err?.message || err) }));
-    return true;
-  }
-  if (msg?.type === 'ih-local-set-cloud-model') {
-    const cloudModel = IH_localState.normalizeCloudModel(msg.model);
-    (async () => {
-      const prev = (await IH_localState.get()).cloudModel;
-      await IH_localState.set({ cloudModel });
-      if (cloudModel !== prev) await IH_analyzeCache.dropAll();
-      sendResponse({ ok: true, cloudModel });
+      const prev = await IH_localState.get();
+      await IH_localState.set({ choice: choice.id });
+      if (prev.choice !== choice.id) {
+        await IH_analyzeCache.dropAll();
+        await destroyOffscreen();
+      }
+      if (choice.local) await maybeOfferInit();
+      sendResponse({ ok: true, id: choice.id });
     })().catch((err) => sendResponse({ ok: false, error: String(err?.message || err) }));
     return true;
   }
@@ -1458,7 +2199,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     (async () => {
       const st = await IH_localState.get();
       if (st.hub !== hub) {
-        await dropLocalModel();
+        await dropLocalModel(true);
         await IH_localState.set({ hub });
       }
       sendResponse({ ok: true, hub });
@@ -1466,9 +2207,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
   if (msg?.type === 'ih-local-open-init') {
-    maybeOfferInit(true)
-      .then(() => sendResponse({ ok: true }))
-      .catch((err) => sendResponse({ ok: false, error: String(err?.message || err) }));
+    (async () => {
+      const localId = IH_localState.normalizeLocalId(msg.localId);
+      if (localId) {
+        const st = await IH_localState.get();
+        if (st.runtime !== localId) {
+          await IH_localState.set({ runtime: localId });
+          await destroyOffscreen();
+        }
+      }
+      await maybeOfferInit(true);
+      sendResponse({ ok: true });
+    })().catch((err) => sendResponse({ ok: false, error: String(err?.message || err) }));
     return true;
   }
   if (msg?.type === 'ih-local-agree') {
@@ -1495,14 +2245,38 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
   if (msg?.type === 'ih-local-drop-model') {
-    dropLocalModel()
+    dropLocalModel(false, msg.localId)
       .then(() => sendResponse({ ok: true }))
       .catch((err) => sendResponse({ ok: false, error: String(err?.message || err) }));
     return true;
   }
 
   if (msg?.type === 'ih-open-highlight-options') {
-    void chrome.tabs.create({ url: chrome.runtime.getURL('options.html') + '#highlight' });
+    const raw = typeof msg.section === 'string' ? msg.section.replace(/^#/, '').trim() : 'highlight';
+    const section = OPTIONS_PAGE_SECTIONS.has(raw) ? raw : 'highlight';
+    const qs = msg.purchase ? '?purchase=1' : '';
+    void chrome.tabs.create({ url: chrome.runtime.getURL('options.html') + qs + `#${section}` });
+    return;
+  }
+
+  if (msg?.type === 'il-open-about-feedback') {
+    void (async () => {
+      await chrome.storage.session.set({ [globalThis.IL_OPEN_ABOUT_FEEDBACK_KEY]: true });
+      await chrome.tabs.create({ url: chrome.runtime.getURL('options.html') + '#about' });
+    })();
+    return;
+  }
+
+  if (msg?.type === 'il-open-store-review') {
+    const url = typeof msg.url === 'string' ? msg.url.trim() : '';
+    if (url.startsWith('https://chromewebstore.google.com/')) {
+      void chrome.tabs.create({ url });
+    }
+    return;
+  }
+
+  if (msg?.type === 'il-engagement-nudge-report') {
+    void postEngagementNudgeReport(msg);
     return;
   }
 
@@ -1513,8 +2287,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  if (msg?.type === 'ih-credits-add-click') {
+    postCreditsAddClick()
+      .then(() => sendResponse({ ok: true }))
+      .catch((err) => sendResponse({ ok: false, error: String(err?.message || err) }));
+    return true;
+  }
+
+  if (msg?.type === 'ih-anonymous-site-domain') {
+    postAnonymousSiteDomain(msg);
+    return;
+  }
+
   if (msg?.type === 'ih-author-note') {
-    postAuthorNote(msg)
+    IL_postAuthorNote(EXTENSION_ID, msg)
       .then(() => sendResponse({ ok: true }))
       .catch((err) => sendResponse({ ok: false, error: String(err?.message || err) }));
     return true;
@@ -1532,14 +2318,100 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return;
   }
 
+  if (msg?.type === 'ih-credits-balance') {
+    readCreditState()
+      .then((data) => sendResponse({ ok: true, ...data }))
+      .catch((err) => sendResponse({ ok: false, error: String(err?.message || err) }));
+    return true;
+  }
+
+  if (msg?.type === 'ih-credits-refresh') {
+    refreshCreditState()
+      .then((data) => sendResponse({ ok: true, ...data }))
+      .catch((err) => sendResponse({ ok: false, error: String(err?.message || err) }));
+    return true;
+  }
+
+  if (msg?.type === 'ih-credits-purchase') {
+    startCreditPurchase(msg.provider, msg.pack, msg.amount_usd)
+      .then((pay_url) => sendResponse({ ok: true, pay_url }))
+      .catch((err) => sendResponse({ ok: false, error: String(err?.message || err) }));
+    return true;
+  }
+
+  if (msg?.type === 'ih-credits-catalog') {
+    readCreditCatalog()
+      .then((data) => sendResponse({ ok: true, ...data }))
+      .catch((err) => sendResponse({ ok: false, error: String(err?.message || err) }));
+    return true;
+  }
+
+  if (msg?.type === 'ih-credits-confirm') {
+    confirmCreditPurchase(typeof msg.order_id === 'string' ? msg.order_id : '')
+      .then((result) => sendResponse({ ok: true, ...result }))
+      .catch((err) => sendResponse({ ok: false, error: String(err?.message || err) }));
+    return true;
+  }
+
+  if (msg?.type === 'ih-api-key') {
+    IL_getApiKey()
+      .then((api_key) => sendResponse({ ok: true, api_key }))
+      .catch((err) => sendResponse({ ok: false, error: String(err?.message || err) }));
+    return true;
+  }
+
+  // 更换前先用新 key 查余额和订单
+  if (msg?.type === 'ih-credits-check-key') {
+    if (!IL_API_KEY_RE.test(msg.api_key)) {
+      sendResponse({ ok: false, error: 'Invalid API key.' });
+      return;
+    }
+    readCreditBalance(msg.api_key)
+      .then((data) => sendResponse({ ok: true, ...data }))
+      .catch((err) => sendResponse({ ok: false, error: String(err?.message || err) }));
+    return true;
+  }
+
+  if (msg?.type === 'ih-api-key-replace') {
+    IL_replaceApiKey(msg.api_key)
+      .then(async () => {
+        // 旧 key 的余额和待付订单不再适用
+        lastCreditBalance = null;
+        await chrome.storage.local.remove([CREDIT_BALANCE_KEY, CREDIT_ORDER_KEY, CREDIT_PAY_URL_KEY]);
+        sendResponse({ ok: true });
+      })
+      .catch((err) => sendResponse({ ok: false, error: String(err?.message || err) }));
+    return true;
+  }
+
   if (msg?.type !== 'ih-analyze') return;
   const text = typeof msg.text === 'string' ? msg.text : '';
   if (!text) {
     sendResponse({ ok: false, error: 'Missing text' });
     return;
   }
-  handleAnalyze(text, !!msg.skipCache, false, sender.tab?.id, msg.cloudModel)
-    .then(({ data, inferred, engine }) => sendResponse({ ok: true, data, inferred, engine }))
-    .catch((err) => sendResponse({ ok: false, error: String(err?.message || err) }));
+  const waitGen = Number(msg.waitGen);
+  const waitUi = Number.isInteger(waitGen) && waitGen > 0
+    ? { waitGen, armCloudWait: !!msg.armCloudWait }
+    : null;
+  handleAnalyze(text, !!msg.skipCache, false, sender.tab?.id, msg.cloudModel, waitUi)
+    .then(({
+      data,
+      inferred,
+      engine,
+      notice,
+      credit_balance,
+    }) => sendResponse({
+      ok: true,
+      data,
+      inferred,
+      engine,
+      ...(notice ? { notice, credit_balance } : {}),
+    }))
+    .catch((err) => sendResponse({
+      ok: false,
+      error: String(err?.message || err),
+      ...(pickAnalyzeNotice(err?.notice) ? { notice: err.notice } : {}),
+    }));
   return true;
 });

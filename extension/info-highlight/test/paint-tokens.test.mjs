@@ -74,7 +74,7 @@ globalThis.CSS = {
   },
 };
 globalThis.getComputedStyle = (el) => ({ color: el?.color || 'rgb(12, 34, 56)' });
-const stored = { show_progress: false, ih_paint_style: 'block' };
+const stored = { show_progress: false, ih_paint_style: 'block', ih_dynamic_track_notice: 'seen' };
 globalThis.document = {
   createRange: () => new FakeRange(),
   createElement() {
@@ -98,6 +98,7 @@ globalThis.document = {
   createDocumentFragment: () => ({ appendChild() {} }),
   getElementById: (id) => styleEls.get(id) ?? null,
   documentElement: {
+    dataset: {},
     style: { setProperty() {}, removeProperty() {} },
     appendChild(el) {
       if (el.id) styleEls.set(el.id, el);
@@ -125,6 +126,7 @@ runInThisContext(readFileSync(join(dir, '../../shared/page/textIndex.js'), 'utf8
   filename: 'textIndex.js',
 });
 runInThisContext(readFileSync(join(dir, '../zh.js'), 'utf8'), { filename: 'zh.js' });
+runInThisContext(readFileSync(join(dir, '../../shared/options-i18n.js'), 'utf8'), { filename: 'options-i18n.js' });
 runInThisContext(readFileSync(join(dir, '../i18n.js'), 'utf8'), { filename: 'i18n.js' });
 runInThisContext(readFileSync(join(dir, '../highlightStyle.js'), 'utf8'), {
   filename: 'highlightStyle.js',
@@ -137,6 +139,9 @@ runInThisContext(readFileSync(join(dir, '../wordMerge.js'), 'utf8'), {
 });
 runInThisContext(readFileSync(join(dir, '../cloudWait.js'), 'utf8'), {
   filename: 'cloudWait.js',
+});
+runInThisContext(readFileSync(join(dir, '../dynamicTrack.js'), 'utf8'), {
+  filename: 'dynamicTrack.js',
 });
 runInThisContext(readFileSync(join(dir, '../page-map.js'), 'utf8'), {
   filename: 'page-map.js',
@@ -319,6 +324,45 @@ test('overlay：无 client rects 记 skip_empty_range', () => {
   }
 });
 
+test('重画一段：重叠的旧 token 高亮删掉，贴边的邻段和进度线留下', () => {
+  globalThis.IH_clearHighlights();
+  const text = 'AAAAXXXX';
+  const mapped = mappedFor(text);
+  globalThis.IH_paintTokens([{ offset: [0, 4], raw: 'AAAA', p: HOT }], mapped, { append: false });
+  globalThis.IH_paintTokens([{ offset: [4, 8], raw: 'XXXX', p: HOT }], mapped, { append: true });
+  const node = mapped.pieces[0].node;
+  const tokenName = [...hlMap.keys()].find((name) => name.startsWith('ih-token-'));
+  const stray = document.createRange();
+  stray.setStart(node, 2);
+  stray.setEnd(node, 6);
+  hlMap.get(tokenName).add(stray);
+  const underline = new FakeHighlight();
+  const mark = document.createRange();
+  mark.setStart(node, 4);
+  mark.setEnd(node, 8);
+  underline.add(mark);
+  hlMap.set('ih-underline', underline);
+
+  globalThis.IH_dropTokenRangesOverlapping(mapped, 4, 8);
+
+  const tokenRanges = [];
+  for (const name of hlMap.keys()) {
+    if (!String(name).startsWith('ih-token-')) continue;
+    tokenRanges.push(...hlMap.get(name));
+  }
+  assert.deepEqual(tokenRanges.map((range) => range.toString()), ['AAAA']);
+  assert.equal([...hlMap.get('ih-underline')].length, 1);
+
+  globalThis.IH_paintTokens([{ offset: [4, 8], raw: 'XXXX', p: HOT }], mapped, { append: true });
+  const again = [];
+  for (const name of hlMap.keys()) {
+    if (!String(name).startsWith('ih-token-')) continue;
+    again.push(...hlMap.get(name));
+  }
+  assert.deepEqual(again.map((range) => range.toString()), ['AAAA', 'XXXX']);
+  globalThis.IH_clearHighlights();
+});
+
 test('pruneDetachedHighlights：断开的 range 丢掉，还在的留下；不碰别人的登记', () => {
   hlMap.clear();
   const live = mappedFor('Hello');
@@ -403,8 +447,10 @@ test('淡去：低 surprisal 也画，按原文色分 Highlight，规则混透�
     assert.ok(names.every((n) => n.includes('rgb-12-34-56')));
     const sheet = styleEls.get('ih-text-fg-css');
     assert.ok(sheet);
+    assert.equal(sheet.className, 'darkreader');
     const css = sheet.sheet.cssRules.join('\n');
-    assert.match(css, /--ih-fade-pct-/);
+    assert.doesNotMatch(css, /var\(/);
+    assert.match(css, /color-mix\(in srgb,rgb\(12, 34, 56\) [\d.]+%,transparent\)/);
     assert.match(css, /transparent/);
     assert.equal([...hlMap.get('ih-token-5') ?? []].length, 0);
   } finally {
@@ -416,7 +462,41 @@ test('淡去：低 surprisal 也画，按原文色分 Highlight，规则混透�
   }
 });
 
-test('淡去归一化：整页结束后，最高的 20% 文字进最强档', () => {
+test('淡去：同一父元素只读一次计算字色', () => {
+  const HS = globalThis.IH_highlightStyle;
+  stored.ih_paint_style = HS.PAINT_FADE;
+  let reads = 0;
+  const prev = globalThis.getComputedStyle;
+  globalThis.getComputedStyle = (el) => {
+    reads += 1;
+    return prev(el);
+  };
+  try {
+    for (const fn of storageListeners) {
+      fn({ ih_paint_style: { newValue: HS.PAINT_FADE } }, 'local');
+    }
+    hlMap.clear();
+    styleEls.clear();
+    const mapped = mappedFor('Hello');
+    globalThis.IH_paintTokens(
+      [
+        { offset: [0, 2], p: HOT },
+        { offset: [2, 5], p: COLD },
+      ],
+      mapped,
+      { append: false },
+    );
+    assert.equal(reads, 1);
+  } finally {
+    globalThis.getComputedStyle = prev;
+    delete stored.ih_paint_style;
+    for (const fn of storageListeners) {
+      fn({ ih_paint_style: { newValue: 'block' } }, 'local');
+    }
+  }
+});
+
+test('淡去归一化：本段最高的 20% 文字当场进最强档', () => {
   const HS = globalThis.IH_highlightStyle;
   stored.ih_paint_style = HS.PAINT_FADE;
   stored.ih_fade_norm = true;
@@ -437,8 +517,93 @@ test('淡去归一化：整页结束后，最高的 20% 文字进最强档', () 
       { offset: [9, 10], raw: chars[9], p: 2 ** -8 },
     );
     globalThis.IH_paintTokens(tokens, mappedFor(chars), { append: false });
+    const top = [...hlMap.keys()].filter((k) => k.includes('fade-15-'));
+    assert.equal(top.length, 1);
+    assert.equal([...hlMap.get(top[0])].length, 2);
+  } finally {
+    delete stored.ih_paint_style;
+    delete stored.ih_fade_norm;
+    delete stored.ih_fade_norm_pct;
+    globalThis.IH_clearHighlights();
+    for (const fn of storageListeners) {
+      fn({ ih_paint_style: { newValue: 'block' } }, 'local');
+    }
+  }
+});
+
+test('淡去归一化：后一段自定标，不改已经画上的段', () => {
+  const HS = globalThis.IH_highlightStyle;
+  stored.ih_paint_style = HS.PAINT_FADE;
+  stored.ih_fade_norm = true;
+  stored.ih_fade_norm_pct = 20;
+  try {
+    for (const fn of storageListeners) {
+      fn({ ih_fade_norm: { newValue: true } }, 'local');
+    }
+    hlMap.clear();
+    styleEls.clear();
+    const text = 'abcdefghijABCDEFGHIJ';
+    const mapped = mappedFor(text);
+    const first = [];
+    for (let i = 0; i < 8; i++) first.push({ offset: [i, i + 1], raw: text[i], p: 0.5 });
+    first.push(
+      { offset: [8, 9], raw: text[8], p: 2 ** -8 },
+      { offset: [9, 10], raw: text[9], p: 2 ** -8 },
+    );
+    const second = [];
+    for (let i = 10; i < 20; i++) second.push({ offset: [i, i + 1], raw: text[i], p: 0.5 });
+    globalThis.IH_paintTokens(first, mapped, { append: false });
+    const topAfterFirst = [...hlMap.keys()].filter((k) => k.includes('fade-15-'));
+    assert.equal(topAfterFirst.length, 1);
+    assert.equal([...hlMap.get(topAfterFirst[0])].length, 2);
+    globalThis.IH_paintTokens(second, mapped, { append: true });
+    const top = [...hlMap.keys()].filter((k) => k.includes('fade-15-'));
+    assert.equal(top.length, 1);
+    assert.equal([...hlMap.get(top[0])].length, 12);
+  } finally {
+    delete stored.ih_paint_style;
+    delete stored.ih_fade_norm;
+    delete stored.ih_fade_norm_pct;
+    globalThis.IH_clearHighlights();
+    for (const fn of storageListeners) {
+      fn({ ih_paint_style: { newValue: 'block' } }, 'local');
+    }
+  }
+});
+
+test('淡去归一化：时间片切开的小批共用本段定标', () => {
+  const HS = globalThis.IH_highlightStyle;
+  stored.ih_paint_style = HS.PAINT_FADE;
+  stored.ih_fade_norm = true;
+  stored.ih_fade_norm_pct = 20;
+  try {
+    for (const fn of storageListeners) {
+      fn({ ih_fade_norm: { newValue: true } }, 'local');
+    }
+    hlMap.clear();
+    styleEls.clear();
+    const chars = 'abcdefghij';
+    const tokens = [];
+    for (let i = 0; i < 8; i++) {
+      tokens.push({ offset: [i, i + 1], raw: chars[i], p: 0.5 });
+    }
+    tokens.push(
+      { offset: [8, 9], raw: chars[8], p: 2 ** -8 },
+      { offset: [9, 10], raw: chars[9], p: 2 ** -8 },
+    );
+    const mapped = mappedFor(chars);
+    globalThis.IH_paintTokens(tokens.slice(0, 8), mapped, {
+      append: false,
+      skipMerge: true,
+      scaleFrom: tokens,
+      bag: tokens,
+    });
     assert.equal([...hlMap.keys()].some((k) => k.includes('fade-15-')), false);
-    globalThis.IH_settleFadeNorm();
+    globalThis.IH_paintTokens(tokens.slice(8), mapped, {
+      append: true,
+      skipMerge: true,
+      scaleFrom: tokens,
+    });
     const top = [...hlMap.keys()].filter((k) => k.includes('fade-15-'));
     assert.equal(top.length, 1);
     assert.equal([...hlMap.get(top[0])].length, 2);

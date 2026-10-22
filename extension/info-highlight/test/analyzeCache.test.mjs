@@ -88,6 +88,7 @@ test('相同请求命中缓存后按当前文档位置重新映射', async () =>
     filename: 'progressAxis.js',
   });
   runInThisContext(readFileSync(join(dir, '../zh.js'), 'utf8'), { filename: 'zh.js' });
+  runInThisContext(readFileSync(join(dir, '../../shared/options-i18n.js'), 'utf8'), { filename: 'options-i18n.js' });
   runInThisContext(readFileSync(join(dir, '../i18n.js'), 'utf8'), { filename: 'i18n.js' });
   runInThisContext(readFileSync(join(dir, '../highlightStyle.js'), 'utf8'), {
     filename: 'highlightStyle.js',
@@ -100,6 +101,9 @@ test('相同请求命中缓存后按当前文档位置重新映射', async () =>
   });
   runInThisContext(readFileSync(join(dir, '../cloudWait.js'), 'utf8'), {
     filename: 'cloudWait.js',
+  });
+  runInThisContext(readFileSync(join(dir, '../dynamicTrack.js'), 'utf8'), {
+    filename: 'dynamicTrack.js',
   });
   runInThisContext(readFileSync(join(dir, '../page-map.js'), 'utf8'), {
     filename: 'page-map.js',
@@ -304,4 +308,22 @@ test('旧的绝对偏移缓存版本会被丢弃', async () => {
   const u = await cache.usage();
   assert.equal(u.entries, 0);
   assert.equal(data[k], undefined);
+});
+
+test('无 crypto.subtle 时仍能算缓存 key（http 页 content script）', async () => {
+  mockLocal();
+  const subtle = globalThis.crypto.subtle;
+  Object.defineProperty(globalThis.crypto, 'subtle', { value: undefined, configurable: true });
+  try {
+    const k = await cache.key('block');
+    assert.match(k, /^[0-9a-f]{32}$/);
+    let sent = 0;
+    await cache.tokens('block', async () => {
+      sent += 1;
+      return [tok(0, 1)];
+    });
+    assert.equal(sent, 1);
+  } finally {
+    Object.defineProperty(globalThis.crypto, 'subtle', { value: subtle, configurable: true });
+  }
 });

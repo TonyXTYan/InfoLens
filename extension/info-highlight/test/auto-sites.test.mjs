@@ -113,21 +113,30 @@ test('add 去重并排序', async () => {
   assert.deepEqual(store[A.KEY], ['a.com', 'b.com']);
 });
 
-test('remove 同时撤掉 host 权限', async () => {
+test('remove 只改名单，不撤全网权限', async () => {
   const { store, origins } = mockChrome({
     sites: ['a.com', 'b.com'],
-    origins: ['*://a.com/*', '*://b.com/*'],
+    origins: ['*://*/*', '*://a.com/*'],
   });
   await A.remove('a.com');
   assert.deepEqual(store[A.KEY], ['b.com']);
-  assert.deepEqual([...origins], ['*://b.com/*']);
+  assert.deepEqual([...origins], ['*://*/*']);
 });
 
-test('granted 要名单与权限都在', async () => {
-  mockChrome({ sites: ['a.com', 'b.com'], origins: ['*://a.com/*'] });
+test('granted 要名单且在全网或旧版按站权限之一', async () => {
+  mockChrome({ sites: ['a.com', 'b.com'], origins: ['*://*/*'] });
   assert.equal(await A.granted('a.com'), true);
-  // 用户在扩展详情页单独撤了权限
-  assert.equal(await A.granted('b.com'), false);
-  // 权限还在但已退出名单
+  assert.equal(await A.granted('b.com'), true);
+  mockChrome({ sites: ['a.com'], origins: ['*://a.com/*'] });
+  assert.equal(await A.granted('a.com'), true);
+  mockChrome({ sites: ['a.com'], origins: [] });
+  assert.equal(await A.granted('a.com'), false);
   assert.equal(await A.granted('c.com'), false);
+});
+
+test('granted 通配名单认 originPattern(条目)', async () => {
+  mockChrome({ sites: ['*.example.com'], origins: ['*://*.example.com/*'] });
+  assert.equal(await A.granted('news.example.com'), true);
+  mockChrome({ sites: ['*.example.com'], origins: ['*://news.example.com/*'] });
+  assert.equal(await A.granted('news.example.com'), true);
 });

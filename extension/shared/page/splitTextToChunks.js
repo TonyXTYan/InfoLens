@@ -71,13 +71,18 @@ globalThis.IL_splitTextToChunks = (function () {
     return maxEnd;
   }
 
-  function assertSplitArgs(text, bytesPerChunk) {
+  function assertSplitArgs(bytesPerChunk) {
     if (bytesPerChunk <= 0) {
       throw new Error('bytesPerChunk must be > 0, got: ' + bytesPerChunk);
     }
-    if (text.includes('\r')) {
-      throw new Error('Text contains \\r (CR); only \\n (LF) is supported.');
-    }
+  }
+
+  /**
+   * 网页抽取可能带 CR；站内输入框已把换行归一成 LF。逐字 `\r`→`\n`（不把 `\r\n` 收成单个 `\n`，以免偏移错位）。
+   * `\r\n` 会变成 `\n\n`，段落切分可能更碎——比抛错可接受。
+   */
+  function normalizeCrToLf(text) {
+    return text.includes('\r') ? text.replace(/\r/g, '\n') : text;
   }
 
   /** 从 pos 切出下一块的结束下标（不含）。 */
@@ -116,7 +121,8 @@ globalThis.IL_splitTextToChunks = (function () {
 
   /** @returns {{ text: string, startOffset: number }[]} */
   function splitTextToChunks(text, bytesPerChunk) {
-    assertSplitArgs(text, bytesPerChunk);
+    assertSplitArgs(bytesPerChunk);
+    text = normalizeCrToLf(text);
     const chunks = [];
     let pos = 0;
     const encodeBuf = new Uint8Array(bytesPerChunk + 1);
@@ -135,7 +141,8 @@ globalThis.IL_splitTextToChunks = (function () {
    * @param {() => boolean} [isStale]
    */
   async function splitTextToChunksAsync(text, bytesPerChunk, isStale) {
-    assertSplitArgs(text, bytesPerChunk);
+    assertSplitArgs(bytesPerChunk);
+    text = normalizeCrToLf(text);
     const chunks = [];
     let pos = 0;
     const encodeBuf = new Uint8Array(bytesPerChunk + 1);

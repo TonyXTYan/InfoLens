@@ -1,0 +1,41 @@
+                <section class="page-about" aria-label="About">
+                    <details class="intro-more page-about-details">
+                        <summary>About / 关于</summary>
+                        <div class="intro-block" lang="en">
+                            <p>Info Highlight is a Chrome extension and a web tool that shows which words in a text carry more information. A language model reads the text from left to right and scores each token by surprisal: the information content, in bits, of that token given the tokens before it. Those scores are drawn as a heatmap. Darker tokens are less predictable from context and are worth reading carefully; lighter tokens are easier to guess and can be skimmed.</p>
+                            <p>That picture matches a standard idea in psycholinguistics: the less predictable a word is from its context, the longer readers tend to dwell on it. Info Highlight uses the same quantity as a reading aid. Linger on the dark, informative words; skim the light, predictable ones.</p>
+                            <p>A short example: in 「打开门看见了一只飞碟」, the surprising object is 飞碟 (a flying saucer). In 「打开门看见了一只猫」, the object 猫 (a cat) is much more predictable, so it should score lower.</p>
+                            <h4>How to use it</h4>
+                            <p>On this page, paste text or pick a demo and press Analyze. The heatmap appears in the panel on the right. To highlight a web page or a PDF you are already reading, install the Chrome extension and click the toolbar icon; click again to clear.</p>
+                            <p>Local analysis in the extension runs on this device with WebGPU. That path is free, and the page text stays on your machine. Cloud analysis is optional and uses credits (1,000 credits ¥10 / $2; 3,000 ¥24 / $5; 10,000 ¥70 / $12, valid 12 months from purchase).</p>
+                            <h4>FAQ</h4>
+                            <p><strong>Is it free?</strong> On-device WebGPU analysis is free. Cloud analysis uses credits. This website sends text to the analysis API.</p>
+                            <p><strong>Does my text leave my machine?</strong> On-device analysis in the extension does not upload text. Cloud analysis and this web page send text to the author’s servers to compute scores; the privacy policy says that text is not stored after the result is returned.</p>
+                            <p><strong>Which model?</strong> The extension’s on-device engine uses Gemma 3 270M (WebGPU). Cloud options include Qwen3 0.6B and Gemma 3 270M. This website uses open-source Qwen3-Base models (0.6B / 1.7B / 4B / 14B).</p>
+                            <p><strong>Does it work on PDF?</strong> The Chrome extension can highlight PDFs. For a local file, allow access to file URLs in the extension settings. This web page analyzes pasted text.</p>
+                            <p>
+                                <a href="https://chromewebstore.google.com/detail/gemajnklkebeikmfphiddpjfimahacdk" target="_blank" rel="noopener">Get Info Highlight on the Chrome Web Store</a>
+                                · <a href="info-highlight.html">Product page</a>
+                                · <a href="index.html">Info Lens</a>
+                            </p>
+                        </div>
+                        <div class="intro-block" lang="zh">
+                            <p>Info Highlight 是 Chrome 扩展，也是网页工具，用来标出一段文字里信息量大的词。语言模型从左到右读文本，按 surprisal（信息量，单位是比特）给每个 token 打分：在上文条件下，这个 token 有多难预测。分数画成热力图。颜色深的词更难从上下文猜到，值得细读；颜色浅的词更容易猜到，可以略读。</p>
+                            <p>这和心理语言学里的 surprisal 理论一致：一个词越难从上下文预测，读者往往在上面停留越久。Info Highlight 把同一类量画出来，当作阅读辅助：在深色、信息量大的词上停留，浅色、可预测的部分可以扫过。</p>
+                            <p>一个短例子：「打开门看见了一只飞碟」里，意外的是「飞碟」；「打开门看见了一只猫」里，「猫」更容易预测，分数应更低。</p>
+                            <h4>怎么用</h4>
+                            <p>本页：粘贴文本或选一个 demo，点 Analyze，右侧出现热力图。若要在正在阅读的网页或 PDF 上高亮，安装 Chrome 扩展，点工具栏图标开始，再点一次清除。</p>
+                            <p>扩展里的本机分析用 WebGPU，在本机运行，这条路径免费，网页文本留在你的设备上。云端分析可选，按额度计费（1,000 点 ¥10 / $2；3,000 点 ¥24 / $5；10,000 点 ¥70 / $12，自购买起 12 个月有效）。</p>
+                            <h4>常见问题</h4>
+                            <p><strong>免费吗？</strong> 本机 WebGPU 分析免费。云端分析按额度计费。本网站会把文本发到分析接口。</p>
+                            <p><strong>文本会离开这台机器吗？</strong> 扩展的本机分析不上传文本。云端分析和本网页会把文本发到作者的服务器计算分数；隐私政策写明返回结果后不保存文本。</p>
+                            <p><strong>用什么模型？</strong> 扩展本机引擎是 Gemma 3 270M（WebGPU）。云端可选 Qwen3 0.6B 和 Gemma 3 270M。本网站使用开源 Qwen3-Base（0.6B / 1.7B / 4B / 14B）。</p>
+                            <p><strong>PDF 能用吗？</strong> Chrome 扩展可以高亮 PDF。本地文件需在扩展设置里允许访问文件网址。本网页分析粘贴的文本。</p>
+                            <p>
+                                <a href="https://chromewebstore.google.com/detail/gemajnklkebeikmfphiddpjfimahacdk" target="_blank" rel="noopener">在 Chrome 应用商店安装</a>
+                                · <a href="info-highlight.html">产品页</a>
+                                · <a href="index.html">Info Lens</a>
+                            </p>
+                        </div>
+                    </details>
+                </section>

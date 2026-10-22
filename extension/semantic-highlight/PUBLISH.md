@@ -97,6 +97,19 @@ export https_proxy=http://127.0.0.1:7890
 
 ### 3. 上传 + 提交审核
 
+
+### 用脚本（与 Info Highlight 共用）
+
+```bash
+./extension/semantic-highlight/pack.sh
+./extension/scripts/publish_store.sh --ext semantic-highlight              # 默认 --store chrome
+./extension/scripts/publish_store.sh --ext semantic-highlight --store chrome
+```
+
+Info Highlight 另支持 `--store edge|both`（见 [../info-highlight/PUBLISH.md](../info-highlight/PUBLISH.md)）。语义高亮尚未接 Edge。
+
+手工 curl 仍可用（如下）。
+
 用 **curl**（走系统 / 环境代理）。`chrome-webstore-upload-cli` 的 Node `fetch` **不走** `HTTP_PROXY`，在本机易超时，故不用 CLI。
 
 把下面 `<version>` 换成实际版本号，在仓库根目录执行：

@@ -34,6 +34,7 @@ test('IL_setUninstallSurveyUrl / IL_reportInstallOrUpdate 带 ext、extension �
         setUninstallURL: (url) => calls.uninstall.push(url),
         lastError: undefined,
       },
+      i18n: { getUILanguage: () => 'zh-CN' },
       storage: {
         local: {
           get: (_keys, cb) => queueMicrotask(() => cb({})),
@@ -41,6 +42,7 @@ test('IL_setUninstallSurveyUrl / IL_reportInstallOrUpdate 带 ext、extension �
         },
       },
     },
+    Intl,
     crypto: { randomUUID: () => 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee' },
     fetch: (url, opts) => {
       calls.fetch.push({ url, body: opts.body ? JSON.parse(opts.body) : null, credentials: opts.credentials });
@@ -56,8 +58,8 @@ test('IL_setUninstallSurveyUrl / IL_reportInstallOrUpdate 带 ext、extension �
       return Promise.resolve();
     },
   };
-  sandbox.globalThis = sandbox;
   const ctx = vm.createContext(sandbox);
+  vm.runInContext(readFileSync(`${ROOT}shared/api-base.js`, 'utf8'), ctx);
   vm.runInContext(readFileSync(`${ROOT}shared/sw/client-id.js`, 'utf8'), ctx);
   vm.runInContext(readFileSync(`${ROOT}shared/sw/lifecycle-events.js`, 'utf8'), ctx);
 
@@ -71,12 +73,17 @@ test('IL_setUninstallSurveyUrl / IL_reportInstallOrUpdate 带 ext、extension �
   await new Promise((r) => setTimeout(r, 20));
   const ev = calls.fetch.find((c) => c.url.includes('/api/extension-events'));
   assert.ok(ev);
+  const expectedTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   assert.deepEqual(ev.body, {
     event: 'install',
     version: '0.1.0',
     extension: 'info-highlight',
+    ui_lang: 'zh-CN',
+    tz: expectedTz,
     client_id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
   });
+  assert.equal(sandbox.IL_localeFields().ui_lang, 'zh-CN');
+  assert.equal(sandbox.IL_localeFields().tz, expectedTz);
 
   sandbox.IL_reportInstallOrUpdate(
     { reason: 'update', previousVersion: '0.0.9' },
@@ -87,4 +94,25 @@ test('IL_setUninstallSurveyUrl / IL_reportInstallOrUpdate 带 ext、extension �
   assert.equal(upd.body.extension, 'semantic-highlight');
   assert.equal(upd.body.previous_version, '0.0.9');
   assert.equal(upd.body.client_id, 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee');
+  assert.equal(upd.body.ui_lang, 'zh-CN');
+  assert.equal(upd.body.tz, expectedTz);
+  assert.equal(
+    calls.fetch.filter((c) => c.url.includes('/api/extension-usage')).length,
+    0,
+    'locale fields must not go out on the per-analysis usage channel',
+  );
+});
+
+test('IL_localeFields：没有 i18n 时仍可只报时区', () => {
+  const sandbox = {
+    chrome: { i18n: undefined },
+    Intl: {
+      DateTimeFormat: () => ({ resolvedOptions: () => ({ timeZone: 'Asia/Shanghai' }) }),
+    },
+  };
+  sandbox.globalThis = sandbox;
+  const ctx = vm.createContext(sandbox);
+  vm.runInContext(readFileSync(`${ROOT}shared/sw/lifecycle-events.js`, 'utf8'), ctx);
+  const fields = JSON.parse(JSON.stringify(sandbox.IL_localeFields()));
+  assert.deepEqual(fields, { tz: 'Asia/Shanghai' });
 });

@@ -27,9 +27,7 @@
   const N = globalThis.IH_autoNudge;
 
   agreeBtn.addEventListener('click', async () => {
-    const granted = await chrome.permissions.request({
-      origins: [globalThis.IH_autoSites.originPattern(host)],
-    });
+    const granted = await globalThis.IH_autoSites.requestAllSitesPermission();
     if (!granted) {
       window.close();
       return;

@@ -874,6 +874,29 @@
    * @param {{ tone?: 'error' | 'info', errorDetail?: string, resumable?: boolean }} [opts]
    *   errorDetail 仅进反馈，不展示；resumable===false 时不挂 Continue（chunk 级 keywords 失败）
    */
+  const SH_STORE_REVIEWS =
+    'https://chromewebstore.google.com/detail/jnjglfjkbopeiodpcgmlhkfhldjfcdda/reviews';
+
+  async function maybeShowEngagementNudge() {
+    const list = ui$('semantic_find_status_list');
+    if (!list || list.querySelector('[data-il-engagement-nudge]')) return;
+    if (!globalThis.IL_engagementNudge || !globalThis.IL_engagementNudgeUi) return;
+    const trFn = globalThis.IL_engagementTr;
+    if (!trFn) return;
+    const meta = await globalThis.IL_engagementNudge.markShown();
+    if (!meta) return;
+    globalThis.IL_engagementNudgeUi.show({
+      list,
+      tr: trFn,
+      storeReviewUrl: SH_STORE_REVIEWS,
+      promptIndex: meta.promptIndex,
+      successTotal: meta.successTotal,
+      onDone: (action) => {
+        void globalThis.IL_engagementNudge.dismiss(action, meta);
+      },
+    });
+  }
+
   function showFindStatus(label, detail, opts) {
     const list = ui$('semantic_find_status_list');
     if (!list) return;
@@ -1242,19 +1265,22 @@
     setSearching(false);
   }
 
+  /** 与 snapshotLastResult 同口径：本轮是否产生可感知进度（对齐 Info Highlight 的 segments/painted）。 */
+  function searchHadEngagementProgress() {
+    return (
+      paintSpecs.length > 0 ||
+      matchedChunks.length > 0 ||
+      semanticMatchProgress.length > 0 ||
+      (analyzedGrayCp != null && analyzedGrayCp > progressOriginCp)
+    );
+  }
+
   /** 覆盖写入长度 1 结果缓存（含状态条；specs 浅拷贝，避免后续 clear 连带清空） */
   function snapshotLastResult(query) {
     if (!query) return;
     // 无结果（含「只有错误」）：不更新缓存。开搜会 setGrayHighlight(窗口起点)；
     // 仅当灰边界已越过 progressOriginCp（至少分析完一块）才视为有进度。
-    if (
-      paintSpecs.length === 0 &&
-      matchedChunks.length === 0 &&
-      semanticMatchProgress.length === 0 &&
-      !(analyzedGrayCp != null && analyzedGrayCp > progressOriginCp)
-    ) {
-      return;
-    }
+    if (!searchHadEngagementProgress()) return;
     lastResult = {
       query,
       text: doc.getText(),
@@ -3254,6 +3280,16 @@
         // abort：Stopped/Continue 已在 Stop 点击时展示，此处只收尾 truncated + 下方 snapshot
       }
       snapshotLastResult(query);
+      if (!abortWanted && globalThis.IL_engagementNudge && searchHadEngagementProgress()) {
+        void (async () => {
+          try {
+            const out = await globalThis.IL_engagementNudge.noteSuccess();
+            if (out.shouldPrompt) await maybeShowEngagementNudge();
+          } catch (err) {
+            console.error('[InfoLens] engagement nudge', err);
+          }
+        })();
+      }
     } catch (err) {
       // 过期轮次 / 用户主动停止：reject 只为收尾，不得打到当前 UI / 控制台
       if (epoch !== searchEpoch || abortWanted || isAbortErr(err)) return;

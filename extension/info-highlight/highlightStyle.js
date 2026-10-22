@@ -16,9 +16,9 @@ globalThis.IH_highlightStyle ||= (function () {
   const KEY_MAX_ALPHA_DEPTH = 'ih_max_highlight_alpha';
   /** 淡去下限 0–50%：最不重要的字保留的不透明度；只有 0 才全透明 */
   const KEY_FADE_MIN_PCT = 'ih_fade_min_pct';
-  const FADE_MIN_DEFAULT = 25;
+  const FADE_MIN_DEFAULT = 30;
   const FADE_MIN_MAX = 50;
-  /** 勾选后，整页文字里惊讶度最高的这一比例落到最强档 */
+  /** 勾选后，本段文字里惊讶度最高的这一比例落到最强档 */
   const KEY_FADE_NORM = 'ih_fade_norm';
   /** 落到最强档的文字比例，1–50%，默认 10% */
   const KEY_FADE_NORM_PCT = 'ih_fade_norm_pct';
@@ -372,7 +372,46 @@ globalThis.IH_highlightStyle ||= (function () {
   }
 
   /**
-   * 写入色阶变量与 --ih-token-pct-* / --ih-fade-pct-*。
+   * 收藏快照用：把当前高亮偏好编成 <mark class="ih-token-N"> 的 CSS。
+   * 淡去/字色混 currentColor，随原页深浅色变；色块/下划线用用户选的色，不写死当时算出来的 RGB。
+   * @param {{ twoTier: boolean, maxAlphaDepth: number, fadeMinPct?: number, paintStyle: string, highlightColor?: number | string, textColor?: string }} prefs
+   */
+  function libraryMarkCss(prefs) {
+    const paintStyle = normalizePaintStyle(prefs.paintStyle);
+    const fade = paintStyle === PAINT_FADE;
+    const text = paintStyle === PAINT_TEXT;
+    const underline = paintStyle === PAINT_UNDERLINE;
+    const rgb = text ? rgbForTextColor(prefs.textColor) : rgbForColor(prefs.highlightColor);
+    const maxAlpha = depthToMaxAlpha(prefs.maxAlphaDepth, paintStyle);
+    const thick = `${UNDERLINE_THICKNESS * 100}%`;
+    const off = `${UNDERLINE_OFFSET * 100}%`;
+    const rules = ['mark[class^="ih-token-"]{background:transparent;color:inherit}'];
+    for (let i = 0; i < TOKEN_LEVELS; i++) {
+      const sel = `mark.ih-token-${i}`;
+      if (fade) {
+        const pct = (fadeOpacityForLevel(i, prefs.fadeMinPct) * 100).toFixed(2);
+        rules.push(`${sel}{color:color-mix(in srgb,currentColor ${pct}%,transparent)}`);
+        continue;
+      }
+      const a = alphaForLevel(i, maxAlpha, !!prefs.twoTier);
+      if (!(a > 0)) continue;
+      if (text) {
+        rules.push(`${sel}{color:color-mix(in srgb-linear,rgb(${rgb}) ${(a * 100).toFixed(2)}%,currentColor)}`);
+      } else if (underline) {
+        rules.push(
+          `${sel}{text-decoration-line:underline;text-decoration-style:solid;text-decoration-color:rgba(${rgb},${a.toFixed(4)});text-decoration-thickness:${thick};text-underline-offset:${off};text-decoration-skip-ink:none}`,
+        );
+      } else {
+        rules.push(`${sel}{background:rgba(${rgb},${a.toFixed(4)})}`);
+      }
+    }
+    return rules.join('');
+  }
+
+  /**
+   * 写入色阶变量（block/下划线/选项页预览用）。
+   * 淡去/字色的 mix 比例不在此写 --ih-fade-pct-* / --ih-token-pct-*：改由 page-map insertRule 写死，避免超大页插表慢；
+   * 且该写法在 Dark Reader 下须配合 textFgSheet 的 class darkreader，见 page-map.js。
    * @param {HTMLElement} [root]
    * @param {{ twoTier: boolean, maxAlphaDepth: number, fadeMinPct?: number, paintStyle: string, highlightColor?: number | string, textColor?: string }} prefs
    */
@@ -393,16 +432,6 @@ globalThis.IH_highlightStyle ||= (function () {
       const color = `rgba(${rgb}, ${a})`;
       el.style.setProperty(`--ih-token-${i}`, color);
       el.style.setProperty(`--ih-token-bg-${i}`, underline || text || fade ? 'transparent' : color);
-      if (text) el.style.setProperty(`--ih-token-pct-${i}`, `${a * 100}%`);
-      else el.style.removeProperty(`--ih-token-pct-${i}`);
-      if (fade) {
-        el.style.setProperty(
-          `--ih-fade-pct-${i}`,
-          `${fadeOpacityForLevel(i, prefs.fadeMinPct ?? FADE_MIN_DEFAULT) * 100}%`,
-        );
-      } else {
-        el.style.removeProperty(`--ih-fade-pct-${i}`);
-      }
     }
   }
 
@@ -489,6 +518,7 @@ globalThis.IH_highlightStyle ||= (function () {
     fadeNormScaleBits,
     fadeOpacityForLevel,
     normalizePrefs,
+    libraryMarkCss,
     applyCssVars,
     underlineOverlayBox,
   };

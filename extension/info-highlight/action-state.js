@@ -1,5 +1,6 @@
 /**
  * 工具栏图标三态（按 tab）：off 默认红 / analyzing 未出块为全灰，其后灰→红 / on 绿勾。
+ * 8 瓦全亮是未激活默认标，分析中不要用；分析中 filled 只走 0–7，做完打勾。
  * 分析中短时忽略重复点击（防误触取消）。
  * TILES 与 icons/render-icons.py 的字块数一致。
  */
@@ -16,10 +17,11 @@
   /** @type {Map<number, { state: 'off' | 'analyzing' | 'on', filled: number, since: number }>} */
   const byTab = new Map();
 
+  /** 分析中：0 全灰，1–7 灰→红。满 8 格是未激活标，封顶 7。 */
   function clampFilled(n) {
     const v = Math.floor(Number(n));
     if (!Number.isFinite(v) || v <= 0) return 0;
-    return v >= TILES ? TILES : v;
+    return v >= TILES ? TILES - 1 : v;
   }
 
   function iconsFor(state, filled) {
@@ -30,7 +32,6 @@
       return { 16: 'icons/icon16.png', 32: 'icons/icon32.png' };
     }
     const n = clampFilled(filled);
-    if (n >= TILES) return { 16: 'icons/icon16.png', 32: 'icons/icon32.png' };
     const suffix = n === 0 ? '-busy' : `-busy-${n}`;
     return {
       16: `icons/icon16${suffix}.png`,

@@ -11,7 +11,7 @@
   }
 
   function sync() {
-    api.setEnabled(box.checked);
+    api.setEnabled(box.checked, 'icon');
   }
 
   box.addEventListener('change', sync);

@@ -142,16 +142,8 @@ window.onload = () => {
 
     // 页面初始化时根据当前语言翻译所有带 data-i18n 属性的元素
     initI18n();
-    // 首页相关：中文时用 HTML 内的英文作 key 翻译后覆盖标题与描述
     const isZh = getCurrentLanguage() === 'zh';
     document.documentElement.lang = isZh ? 'zh-CN' : 'en';
-    if (isZh) {
-        const metaDesc = document.querySelector('meta[name="description"]');
-        if (metaDesc) {
-            const content = metaDesc.getAttribute('content');
-            if (content) metaDesc.setAttribute('content', tr(content));
-        }
-    }
     // 加载首页介绍内容（home.en.html / home.zh.html）
     loadHomeContent('home-intro-content');
 

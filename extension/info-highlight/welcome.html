@@ -37,7 +37,7 @@
     p { margin: 0 0 12px; color: var(--fg); }
     p:last-of-type { margin-bottom: 0; }
     strong { font-weight: 600; }
-    /* Qwen3-0.6B-Base 把这一语言的整页文案当一篇分析；--ih-p 走默认淡出曲线（下限 25%） */
+    /* Qwen3-0.6B-Base 把这一语言的整页文案当一篇分析；--ih-p 走默认淡出曲线（下限 30%） */
     main span {
       color: color-mix(in srgb, currentColor calc(var(--ih-p, 1) * 100%), transparent);
     }
@@ -75,7 +75,9 @@
       <button type="button" data-close><span style="--ih-p:.8">知道了</span></button>
     </div>
   </main>
+  <script src="config.js"></script>
   <script src="zh.js"></script>
+  <script src="options-i18n.js"></script>
   <script src="i18n.js"></script>
   <script src="welcome.js"></script>
 </body>

@@ -34,13 +34,25 @@ export const translations: Translations = {
         '1M+ plays on RedNote': '小红书 100万+次播放',
         'Go to demo on RedNote: xhslink.com': '在小红书打开demo：xhslink.com',
         '500 likes/stars on RedNote': '小红书 500 赞藏',
-        '1K+ likes/stars on RedNote': '小红书 1千+ 赞藏',
+        '3K+ likes/stars on RedNote': '小红书 3千+ 赞藏',
         // 合成标题串（<title>）：英文 key 与 injectPageMeta documentTitleEn 拼接一致
         'Info Lens - A toolbox for exploring the informational nature of LLMs and language': 'Info Lens 信息透镜 - 用于探索 LLM 与语言的信息本质的工具箱',
         "Info Highlight - highlight the 'informative' parts": 'Info Highlight 信息高亮 - 高亮“信息量大”的地方',
         'LLM Raw Chat - chat with explicit raw prompts': 'LLM Raw Chat 原始对话 - 用精确的 prompt 进行对话',
         'Context Attribution - attribute a predicted token to its context': 'Context Attribution 上下文归因 - 将预测 token 归因到上下文',
         'LLM Causal Flow - explore the context-attribution DAG': 'LLM Causal Flow 因果流 - 探索上下文归因的 DAG 关系图',
+        'Info Lens is a toolbox for exploring the informational nature of LLMs and language. LLM Causal Flow - explore the context-attribution DAG, Info Highlight - highlight the \'informative\' parts, Semantic Highlight - search and highlight words by meaning':
+            'Info Lens 是一套探索 LLM 与语言之信息本质的工具箱。LLM Causal Flow 探索上下文归因 DAG，Info Highlight 高亮信息量大的部分，Semantic Highlight 按语义搜索并高亮词语。',
+        'Info Highlight heatmaps per-token surprisal (bits) so you linger on informative words and skim predictable ones. Works on pages and PDFs. Local WebGPU analysis is free.':
+            'Info Highlight 用语言模型计算每个词的信息量（比特）并画成热力图，便于细读信息量大的词、略读可预测的部分。支持网页和 PDF。本机 WebGPU 分析免费。',
+        'LLM Raw Chat is an Info Lens tool for talking to a language model with explicit raw prompts, system text, and teacher forcing.':
+            'LLM Raw Chat 是 Info Lens 工具，用明确的原始 prompt、system 文本和 teacher forcing 与语言模型对话。',
+        'Context Attribution shows which context tokens a language model uses when predicting a target token. An Info Lens toolbox page.':
+            'Context Attribution 显示语言模型在预测目标 token 时用到哪些上下文 token。Info Lens 工具箱中的一页。',
+        'LLM Causal Flow draws a DAG of how a language model attributes a predicted token to its context. Explore information flow in generated text on Info Lens.':
+            'LLM Causal Flow 把语言模型把预测 token 归因到上下文的过程画成 DAG。在 Info Lens 上查看生成文本中的信息流动。',
+        'Compare two Info Highlight analyses side by side. Part of the Info Lens toolbox.':
+            '并排对比两次 Info Highlight 分析结果。Info Lens 工具箱的一部分。',
         'Max new tokens must not exceed {limit}': 'Max new tokens 不得超过 {limit}',
         'Max new tokens must be a positive integer': 'Max new tokens 须为正整数',
         // LLM Causal Flow（gen_attribute）页：placeholder / title 文案

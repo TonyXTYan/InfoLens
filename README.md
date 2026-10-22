@@ -17,51 +17,68 @@ license: apache-2.0
 
 # Info Lens
 
-**Info Lens** is a small toolbox for exploring the informational nature of LLMs and language.
-- Source: [github.com/dqy08/InfoLens](https://github.com/dqy08/InfoLens)
-- Live demo: [huggingface.co/spaces/dqy08/InfoLens](https://huggingface.co/spaces/dqy08/InfoLens)
+A toolbox at the intersection of LLMs, linguistics, and information theory.
+
+**Site:** https://info-lens.app/
+
+## Products
+
+### LLM Causal Flow
+Explore how context attributes across a generation (DAG view).
 
 <img src="client/src/assets/images/dag-dark.gif" width="460" alt="LLM Causal Flow" />
 
-<img src="client/src/assets/images/dallas_3s.gif" width="460" alt="Chain-of-thought" />
+### Info Highlight
+Highlight the informative / high-surprisal parts of text. Also as a [Chrome extension](https://chromewebstore.google.com/detail/info-highlight/gemajnklkebeikmfphiddpjfimahacdk).
 
-## 📦 Quick Start
+<img src="client/src/assets/images/highlight.png" width="460" alt="Info Highlight" />
 
-### Using Docker (Recommended)
+<img src="client/src/assets/images/info-highlight-styles.png" width="460" alt="Info Highlight styles" />
 
-This is the simplest way to run Info Lens:
+<img src="client/src/assets/images/info-highlight-demo.png" width="460" alt="Info Highlight demo" />
+
+### Semantic Highlight
+Chrome extension: search and highlight words by meaning.
+
+[Chrome Web Store](https://chromewebstore.google.com/detail/semantic-highlight/jnjglfjkbopeiodpcgmlhkfhldjfcdda)
+
+<img src="client/src/assets/images/小型宣传图块.png" width="460" alt="Semantic Highlight" />
+
+## Also
+- [Context Attribution](https://info-lens.app/attribution)
+- [LLM Raw Chat](https://info-lens.app/chat)
+- [Hugging Face Space](https://huggingface.co/spaces/dqy08/InfoLens)
+
+## Develop locally
+
+Most people only need the site or extensions. For contributors:
+
+**Frontend** (webpack dev server):
 
 ```bash
-# 1. Build the image
-docker build -t inforadar .
-
-# 2. Run the container (Map port to 7860)
-docker run -p 7860:7860 inforadar
-```
-Once running, visit `http://localhost:7860` in your browser.
-
-### Local Development
-
-**Frontend Build** 
-
-```bash
-cd client/src && npm ci && npm run build
+cd client/src && npm ci && npm start
 ```
 
-**Backend Environment**:
+**Backend** (loads models; use `--no-facade-token` for local API without the production facade):
 
 ```bash
 pip install -r requirements.txt
-python run.py
+python run.py --no-facade-token
 ```
 
-Visit `http://localhost:5001` in your browser.
+Default backend port is `5001`.
+
+**Docker** builds the same stack used on the Hugging Face Space (heavy; pulls models). Prefer the Space or site unless you need a self-hosted container:
+
+```bash
+docker build -t infolens .
+docker run -p 7860:7860 infolens
+```
 
 ## Legacy name: InfoRadar
 
-InfoRadar is the former project and repo name. It still appears in parts of the codebase. 
+InfoRadar is the former project and repo name. It still appears in parts of the codebase.
 
-## 📜 License
+## License
 
 Apache 2.0. Copyright and attribution: see [NOTICE](NOTICE).
-

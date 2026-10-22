@@ -50,8 +50,30 @@ test("bytesPerChunk=0 抛错", () => {
 test("bytesPerChunk=-1 抛错", () => {
     assert.throws(() => splitTextToChunks("hello", -1), /bytesPerChunk must be > 0/);
 });
-test("文本含 \\r 抛错", () => {
-    assert.throws(() => splitTextToChunks("hello\r\nworld", 512), /\\r/);
+test("lone CR 当作 LF，长度不变、偏移对齐", () => {
+    const raw = "hello\rworld";
+    const chunks = splitTextToChunks(raw, 512);
+    assert.strictEqual(chunks.map((c) => c.text).join(""), "hello\nworld");
+    assert.strictEqual(chunks.map((c) => c.text).join("").length, raw.length);
+    assert.deepStrictEqual(chunks, splitTextToChunks("hello\nworld", 512));
+    for (const c of chunks) {
+        assert.strictEqual("hello\nworld".slice(c.startOffset, c.startOffset + c.text.length), c.text);
+    }
+});
+test("CRLF 逐字变成 LF LF（不收成单个 \\n），仍可切且长度不变", () => {
+    const raw = "AAAA\r\nBBBB";
+    const chunks = splitTextToChunks(raw, 512);
+    const normalized = "AAAA\n\nBBBB";
+    assert.strictEqual(normalized.length, raw.length);
+    assert.strictEqual(chunks.map((c) => c.text).join(""), normalized);
+    assert.deepStrictEqual(chunks, splitTextToChunks(normalized, 512));
+});
+test("CRLF 按段落边界切（比单 LF 更碎），偏移仍对齐归一后字符串", () => {
+    // "AAAA\n\n"=6B 与 "BBBB"=4B，limit=6 → 两块；原文 "AAAA\r\nBBBB" 等长
+    const raw = "AAAA\r\nBBBB";
+    const chunks = splitTextToChunks(raw, 6);
+    expectChunks("AAAA\n\nBBBB", 6, ["AAAA\n\n", "BBBB"]);
+    assert.deepStrictEqual(chunks, splitTextToChunks("AAAA\n\nBBBB", 6));
 });
 
 // ── 2. 空文本（outer while 不进入）──────────────────────────────────────────────

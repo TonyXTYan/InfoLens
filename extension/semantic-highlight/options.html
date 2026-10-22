@@ -1,111 +1,57 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-options-i18n="1">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Semantic Highlight</title>
-  <style>
-    :root {
-      color-scheme: light dark;
-      --fg: #1f1f1f;
-      --muted: #5e5e5e;
-      --bg: #fff;
-      --line: #e1e3e1;
-      --btn-border: #747775;
-    }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --fg: #e3e3e3;
-        --muted: #c4c7c5;
-        --bg: #1f1f1f;
-        --line: #444746;
-        --btn-border: #8e918f;
-      }
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      font: 16px/1.45 system-ui, sans-serif;
-      color: var(--fg);
-      background: var(--bg);
-    }
-    .top {
-      border-bottom: 1px solid var(--line);
-    }
-    .top-inner {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      max-width: 680px;
-      margin: 0 auto;
-      padding: 16px 24px;
-    }
-    .top-icon { flex-shrink: 0; width: 40px; height: 40px; border-radius: 8px; }
-    .top-title { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-    .top-name { font-size: 22px; font-weight: 600; }
-    .top-version { color: var(--muted); font-size: 13px; font-weight: 400; }
-    main { max-width: 680px; margin: 0 auto; padding: 28px 24px 64px; }
-    h2 {
-      font-size: 1.05rem;
-      font-weight: 500;
-      margin: 0 0 0.25rem;
-    }
-    .row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      min-height: 48px;
-      padding: 12px 0;
-      border-bottom: 1px solid var(--line);
-    }
-    .row-text { flex: 1; min-width: 0; }
-    .row-title { font-size: 16px; }
-    .row-desc { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
-    button {
-      flex-shrink: 0;
-      font: inherit;
-      font-weight: 500;
-      height: 36px;
-      padding: 0 16px;
-      border: 1px solid var(--btn-border);
-      border-radius: 16px;
-      background: transparent;
-      color: var(--fg);
-      cursor: pointer;
-    }
-    button:hover:not(:disabled) { filter: brightness(1.08); }
-    button:disabled { opacity: 0.45; cursor: default; }
-  </style>
+  <link rel="stylesheet" href="options-shell.css" />
   <link rel="stylesheet" href="options-new-dots.css" />
+  <link rel="stylesheet" href="options-about.css" />
 </head>
 <body>
   <header class="top">
     <div class="top-inner">
-      <img id="brand_icon" class="top-icon" width="40" height="40" alt="">
+      <img id="brand_icon" class="top-icon" width="32" height="32" alt="">
       <span class="top-title">
         <span id="brand_name" class="top-name"></span>
         <span id="brand_version" class="top-version"></span>
       </span>
     </div>
   </header>
+  <div class="layout">
+  <nav class="side-nav" aria-label="Settings" data-i18n-attr="aria-label">
+    <a href="#storage" data-i18n>Storage</a>
+    <a href="#about" data-i18n>About</a>
+  </nav>
   <main>
-    <h2>Storage</h2>
+    <section id="storage">
+    <h2 data-i18n>Storage</h2>
+    <div class="group">
     <div class="row" data-option-id="analysis_cache">
       <div class="row-text">
-        <div class="row-title">Analysis cache</div>
+        <div class="row-title" data-i18n>Analysis cache</div>
         <p id="cache_desc" class="row-desc"></p>
       </div>
-      <button type="button" id="cache_clear">Clear</button>
+      <button type="button" id="cache_clear" data-i18n>Clear</button>
     </div>
+    </div>
+    </section>
+    <section id="about"></section>
   </main>
+  </div>
+  <script src="config.js"></script>
+  <script src="options-about-zh.js"></script>
+  <script src="zh.js"></script>
+  <script src="options-i18n.js"></script>
   <script src="cache/ring-store.js"></script>
   <script src="semantic/analyzeCache.js"></script>
   <script src="sw/action-dot.js"></script>
   <script src="options-attention.js"></script>
   <script src="options-catalog.js"></script>
   <script src="options-new-dots.js"></script>
+  <script src="options-nav.js"></script>
+  <script src="aboutNote.js"></script>
+  <script src="options-about.js"></script>
   <script src="options.js"></script>
 </body>
 </html>

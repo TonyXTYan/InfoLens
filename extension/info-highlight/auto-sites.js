@@ -40,8 +40,24 @@ globalThis.IH_autoSites ||= (function () {
     return entry === host;
   }
 
-  // 一次授权覆盖 http 与 https。manifest 的 optional_host_permissions 也须用通配 scheme 的单条，
-  // 拆成 http、https 两条则都不是它的超集，permissions.request 会被 Chrome 拒掉。
+  // 自动分析 / 收藏拉图共用：一次授权覆盖所有 http(s) 站，避免每站各弹一次。
+  // manifest 的 optional_host_permissions 须含 *://*/*；拆成 http、https 两条则 permissions.request 会被拒。
+  const ALL_SITES_ORIGINS = ['*://*/*'];
+
+  function allSitesPermissionRequest() {
+    return { origins: ALL_SITES_ORIGINS };
+  }
+
+  /** 须在用户手势里同步调用（返回的 Promise 可之后再 await）。 */
+  function requestAllSitesPermission() {
+    return chrome.permissions.request(allSitesPermissionRequest());
+  }
+
+  async function hasAllSitesPermission() {
+    return chrome.permissions.contains(allSitesPermissionRequest());
+  }
+
+  /** 单站 match pattern（仅用于清理旧版按站授权残留）。 */
   function originPattern(host) {
     return `*://${host}/*`;
   }
@@ -72,13 +88,71 @@ globalThis.IH_autoSites ||= (function () {
   async function remove(host) {
     const cur = await list();
     await chrome.storage.local.set({ [KEY]: cur.filter((h) => h !== host) });
-    await chrome.permissions.remove({ origins: [originPattern(host)] });
+    try {
+      await chrome.permissions.remove({ origins: [originPattern(host)] });
+    } catch {
+      /* 旧版按站授权可能已无 */
+    }
+  }
+
+  /** 0.4.3 按页 hostname 或名单条目（含 *.example.com）授权的 pattern，去重后逐个 contains。 */
+  async function legacyOriginPatternsForPage(host) {
+    const patterns = new Set([originPattern(host)]);
+    for (const entry of await list()) {
+      if (matches(entry, host)) patterns.add(originPattern(entry));
+    }
+    return [...patterns];
+  }
+
+  /** 自动分析能否注入：全网权限，或仍保留的旧版按站 / 通配 optional 权限。 */
+  async function hasHostPermissionForPage(host) {
+    if (!host) return false;
+    if (await hasAllSitesPermission()) return true;
+    for (const pattern of await legacyOriginPatternsForPage(host)) {
+      if (pattern === '*://*/*') continue;
+      if (await chrome.permissions.contains({ origins: [pattern] })) return true;
+    }
+    return false;
+  }
+
+  /** 已拿到全网权限后，去掉名单里各条目对应的旧按站 pattern，避免权限页堆一堆重复项。 */
+  async function pruneLegacyOriginsIfAllSites() {
+    if (!(await hasAllSitesPermission())) return;
+    const patterns = new Set();
+    for (const entry of await list()) {
+      const p = originPattern(entry);
+      if (p !== '*://*/*') patterns.add(p);
+    }
+    if (!patterns.size) return;
+    try {
+      await chrome.permissions.remove({ origins: [...patterns] });
+    } catch {
+      /* 用户可能已在扩展详情里撤过部分项 */
+    }
   }
 
   async function granted(host) {
     if (!(await has(host))) return false;
-    return chrome.permissions.contains({ origins: [originPattern(host)] });
+    return hasHostPermissionForPage(host);
   }
 
-  return { KEY, hostOf, parseHost, matches, originPattern, list, has, hasExact, add, remove, granted };
+  return {
+    KEY,
+    ALL_SITES_ORIGINS,
+    hostOf,
+    parseHost,
+    matches,
+    originPattern,
+    allSitesPermissionRequest,
+    requestAllSitesPermission,
+    hasAllSitesPermission,
+    list,
+    has,
+    hasExact,
+    add,
+    remove,
+    granted,
+    hasHostPermissionForPage,
+    pruneLegacyOriginsIfAllSites,
+  };
 })();

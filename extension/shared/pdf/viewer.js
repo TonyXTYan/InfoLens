@@ -532,6 +532,7 @@
           setError("PDF missing or cleaned up (re-open from the original page)");
           return;
         }
+        window.__IL_PDF_SOURCE_HREF__ = entry.sourceHref || "";
         await loadFromData(entry.data, entry.fileName || "document.pdf");
       } catch (err) {
         setError(String(err?.message || err));

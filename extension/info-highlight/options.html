@@ -4,110 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Info Highlight</title>
+  <link rel="stylesheet" href="options-shell.css" />
   <style>
-    :root {
-      color-scheme: light dark;
-      --fg: #1f1f1f;
-      --muted: #5e5e5e;
-      --bg: #fff;
-      --line: #e1e3e1;
-      --btn-border: #747775;
-      --group: #f3f4f3;
-      --top-bar: 45px;
-    }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --fg: #e3e3e3;
-        --muted: #c4c7c5;
-        --bg: #1f1f1f;
-        --line: #444746;
-        --btn-border: #8e918f;
-        --group: #2a2b2a;
-      }
-    }
-    * { box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      font: 16px/1.45 system-ui, sans-serif;
-      color: var(--fg);
-      background: var(--bg);
-    }
-    .top {
-      position: sticky;
-      top: 0;
-      z-index: 2;
-      height: var(--top-bar);
-      background: var(--bg);
-      border-bottom: 1px solid var(--line);
-    }
-    .top-inner {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      max-width: 960px;
-      margin: 0 auto;
-      padding: 6px 24px;
-    }
-    .top-icon { flex-shrink: 0; width: 32px; height: 32px; border-radius: 6px; }
-    .top-title { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-    .top-name { font-size: 18px; font-weight: 600; }
-    .top-version { color: var(--muted); font-size: 13px; font-weight: 400; }
-    button.top-guide {
-      margin-left: auto;
-      height: auto;
-      padding: 0;
-      border: 0;
-      border-radius: 0;
-      background: none;
-      color: #0A84FF;
-      font-size: 14px;
-      font-weight: 400;
-      text-decoration: underline;
-      text-underline-offset: 3px;
-    }
-    button.top-guide:hover { filter: none; }
-    .layout {
-      display: flex;
-      align-items: flex-start;
-      gap: 32px;
-      max-width: 960px;
-      margin: 0 auto;
-      padding: 8px 24px 40px;
-    }
-    .side-nav {
-      position: sticky;
-      top: calc(var(--top-bar) + 12px);
-      flex: 0 0 196px;
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-    .side-nav a {
-      display: flex;
-      align-items: center;
-      gap: 0.4em;
-      padding: 8px 12px;
-      border-radius: 20px;
-      color: var(--fg);
-      font-size: 16px;
-      line-height: 20px;
-      text-decoration: none;
-    }
-    .side-nav a.nav-is-new::after {
-      content: "";
-      flex-shrink: 0;
-      width: 0.45em;
-      height: 0.45em;
-      border-radius: 50%;
-      background: #0A84FF;
-    }
-    .side-nav a:hover,
-    .side-nav a[aria-current="true"] { background: var(--group); }
-    .side-nav a:focus:not(:focus-visible) { outline: none; }
-    main { flex: 1; min-width: 0; margin: 0; padding: 8px 0 100vh; }
-    section { scroll-margin-top: calc(var(--top-bar) + 12px); }
     .page-demo {
       display: flex;
       align-items: center;
@@ -117,32 +15,6 @@
       cursor: pointer;
       font-size: 13px;
     }
-    section { margin: 0 0 22px; }
-    section:last-child { margin-bottom: 0; }
-    h2 {
-      font-size: 1.05rem;
-      font-weight: 500;
-      margin: 0 0 0.25rem;
-    }
-    .group {
-      background: var(--group);
-      border-radius: 12px;
-      padding: 2px 14px;
-    }
-    .group > .row:last-of-type,
-    .sites .row:last-child { border-bottom: none; }
-    .row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      min-height: 40px;
-      padding: 8px 0;
-      border-bottom: 1px solid var(--line);
-    }
-    label.row { cursor: pointer; }
-    .row-text { flex: 1; min-width: 0; }
-    .row-title { font-size: 16px; }
     .experimental {
       display: inline-block;
       margin-left: 0.4em;
@@ -151,7 +23,304 @@
       color: var(--muted);
       vertical-align: 0.1em;
     }
-    .row-desc { margin: 1px 0 0; color: var(--muted); font-size: 14px; line-height: 1.35; }
+    #credits_notice { margin-top: 0; }
+    ul.credits-billing-intro { margin: 4px 0 0; padding-left: 1.25em; }
+    ul.credits-billing-intro li + li { margin-top: 0.35em; }
+    .credits-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      row-gap: 6px;
+      width: 100%;
+    }
+    .credits-title-leading {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      flex-shrink: 0;
+    }
+    .credits-title .row-title { white-space: nowrap; }
+    .credits-api-key {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      max-width: 100%;
+      margin-left: auto;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .credits-api-key-label {
+      white-space: nowrap;
+      font-size: 13px;
+    }
+    .credits-api-key-chip {
+      display: inline-flex;
+      align-items: center;
+      min-width: 0;
+      max-width: min(280px, 52vw);
+      height: 32px;
+      padding: 0 2px 0 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--fg);
+    }
+    .credits-api-key-value {
+      flex: 1;
+      min-width: 0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.2;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .credits-api-key-actions {
+      display: flex;
+      flex-shrink: 0;
+      align-items: center;
+      margin-left: 6px;
+      padding-left: 2px;
+      border-left: 1px solid var(--line);
+    }
+    button.credits-api-key-btn {
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--muted);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    button.credits-api-key-btn:hover {
+      background: var(--group);
+      color: var(--fg);
+    }
+    button.credits-api-key-btn svg {
+      width: 14px;
+      height: 14px;
+      fill: currentColor;
+    }
+    button.credits-api-key-btn svg.icon-stroke {
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    button.credits-api-key-btn.credits-copy-btn { position: relative; }
+    button.credits-api-key-btn.credits-copy-btn svg {
+      position: absolute;
+      inset: 0;
+      margin: auto;
+      transition: opacity 0.12s ease;
+    }
+    button.credits-api-key-btn.credits-copy-btn .icon-done { opacity: 0; }
+    button.credits-api-key-btn.is-copied .icon-copy { opacity: 0; }
+    button.credits-api-key-btn.is-copied .icon-done { opacity: 1; }
+    .is-pending { visibility: hidden; }
+    button.icon-btn {
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border: none;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+    }
+    button.icon-btn svg { width: 18px; height: 18px; fill: currentColor; }
+    button.icon-btn.refreshing svg { animation: credits-spin 0.7s linear infinite; }
+    .credits-title-add {
+      height: 28px;
+      padding: 0 12px;
+      border-radius: 14px;
+      font-size: 14px;
+      margin-left: 4px;
+    }
+    #credit-orders .sites { margin-top: 4px; }
+    #credits_orders:not(:empty) {
+      display: grid;
+      grid-template-columns: max-content max-content max-content max-content minmax(0, 1fr);
+      column-gap: 0.8em;
+      align-items: center;
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+    }
+    #credits_orders > .row {
+      display: grid;
+      grid-column: 1 / -1;
+      grid-template-columns: subgrid;
+      align-items: center;
+      column-gap: 0.8em;
+    }
+    #credits_orders .order-money,
+    #credits_orders .order-points {
+      display: inline-grid;
+      grid-template-columns: 1fr auto;
+      column-gap: 0.15em;
+      align-items: baseline;
+    }
+    #credits_orders .order-amount,
+    #credits_orders .order-credits { text-align: end; }
+    #credits_orders .order-actions {
+      grid-column: 5;
+      justify-self: end;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: nowrap;
+    }
+    #credits_orders .order-actions button { margin: 0; }
+    #credits_orders span { white-space: nowrap; }
+    /* 窄窗口换行。原布局英文「部分退款」订单行在 916px 及以下重叠，再留约 15px 给 Windows 滚动条；更宽的窗口不受影响 */
+    @media (max-width: 931px) {
+      #credits_orders:not(:empty) { display: block; }
+      #credits_orders > .row { display: flex; flex-wrap: wrap; justify-content: flex-start; row-gap: 4px; }
+      #credits_orders .order-actions { flex-wrap: wrap; margin-left: auto; }
+      .credits-title-leading { flex-wrap: wrap; flex-shrink: 1; }
+      .credits-title .row-title { white-space: normal; }
+      .credits-api-key { flex-wrap: wrap; }
+      .credits-api-key-chip { height: auto; min-height: 32px; }
+      .credits-api-key-value { white-space: normal; overflow-wrap: anywhere; }
+    }
+    dialog {
+      box-sizing: border-box;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 0;
+      width: 420px;
+      max-width: calc(100vw - 32px);
+      max-height: calc(100vh - 24px);
+      overflow: auto;
+      background: var(--bg, #fff);
+      color: var(--fg);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22);
+    }
+    dialog::backdrop {
+      background: rgba(0, 0, 0, 0.48);
+      backdrop-filter: blur(2px);
+    }
+    @media (prefers-color-scheme: dark) {
+      dialog { box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55); }
+      dialog::backdrop { background: rgba(0, 0, 0, 0.68); }
+    }
+    dialog form { padding: 16px 18px 14px; margin: 0; }
+    dialog h3 { margin: 0 0 12px; font-size: 17px; font-weight: 600; }
+    .credits-key-input {
+      box-sizing: border-box;
+      width: 100%;
+      margin-top: 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 14px;
+    }
+    .credits-key-prev-wrap {
+      display: flex;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+      font-size: 13px;
+    }
+    .credits-key-prev-label {
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+    a.credits-key-prev {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: #0A84FF;
+    }
+    .credits-pick-label { display: block; margin: 10px 0 6px; font-size: 13px; color: var(--muted); }
+    .credits-pick-heading {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 10px 0 6px;
+    }
+    .credits-pick-heading .credits-pick-label { margin: 0; flex-shrink: 0; }
+    .credits-pick-hint {
+      font-size: 12px;
+      line-height: 1.35;
+      color: var(--muted);
+      text-align: end;
+      min-width: 0;
+    }
+    .credits-pick-list { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+    #credits_pack_list .pack-line {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.8em;
+      font-variant-numeric: tabular-nums;
+    }
+    #credits_pack_list .pack-points {
+      display: inline-grid;
+      grid-template-columns: var(--pack-credits-width, 4ch) auto;
+      column-gap: 0.15em;
+      align-items: baseline;
+    }
+    #credits_pack_list .pack-credits { text-align: end; }
+    #credits_pack_list .pack-trailing {
+      display: inline-grid;
+      grid-template-columns: var(--pack-discount-width, 0px) var(--pack-price-width, 5ch);
+      column-gap: 0.8em;
+      align-items: baseline;
+      flex-shrink: 0;
+    }
+    #credits_pack_list .pack-discount,
+    #credits_pack_list .pack-price {
+      justify-self: end;
+      text-align: end;
+    }
+    #credits_pack_list .pack-discount {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    #credits_pack_list .pack-price {
+      display: inline-flex;
+      align-items: baseline;
+      justify-content: flex-end;
+      width: 100%;
+    }
+    #credits_pack_list .pack-code { margin-inline-start: 0.35em; }
+    #credits_pack_list .pack-line span { white-space: nowrap; }
+    .credits-pick-list label.row {
+      margin: 0;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      cursor: pointer;
+      align-items: flex-start;
+    }
+    .credits-pick-list label.row:has(input:checked) { border-color: var(--fg); }
+    .credits-pick-list input { margin-right: 10px; }
+    .credits-currency { display: flex; gap: 8px; margin: 0 0 4px; }
+    .credits-currency button[aria-pressed="true"] {
+      background: var(--fg);
+      color: var(--bg);
+      border-color: var(--fg);
+    }
+    .credits-pick-list label.credits-pay input { margin-top: 3px; }
+    .credits-pay-copy { display: flex; flex: 1; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
+    .credits-pay-note { margin-top: 1px; color: var(--muted); font-size: 12px; line-height: 1.3; }
+    .credits-dialog-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+    .credits-terms { margin: 12px 0 0; color: var(--muted); font-size: 12px; line-height: 1.35; }
+    .credits-terms a { color: inherit; }
+    button.icon-btn:disabled { opacity: 1; }
+    @keyframes credits-spin { to { transform: rotate(360deg); } }
+    .row-desc.model-note { margin-left: 1em; font-size: 13px; }
+    .row-desc.ih-webgpu-status { white-space: pre-line; }
     input[type="checkbox"] {
       flex-shrink: 0;
       width: 18px;
@@ -159,20 +328,6 @@
       margin: 0;
       cursor: pointer;
     }
-    button {
-      flex-shrink: 0;
-      font: inherit;
-      font-weight: 500;
-      height: 36px;
-      padding: 0 16px;
-      border: 1px solid var(--btn-border);
-      border-radius: 16px;
-      background: transparent;
-      color: var(--fg);
-      cursor: pointer;
-    }
-    button:hover:not(:disabled) { filter: brightness(1.08); }
-    button:disabled { opacity: 0.45; cursor: default; }
     .row-btns { display: flex; flex-shrink: 0; gap: 8px; }
     select {
       flex-shrink: 0;
@@ -289,6 +444,28 @@
       border-left: 2px solid var(--line);
       margin-left: 4px;
     }
+    .local-models-list {
+      margin-top: -4px;
+    }
+    .local-models-list .row {
+      padding-top: 10px;
+      padding-bottom: 10px;
+    }
+    .ih-cloud-api-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      width: 100%;
+    }
+    a.ih-cloud-api-guide {
+      flex-shrink: 0;
+      font-size: 14px;
+      font-weight: 400;
+      color: #0A84FF;
+      text-decoration: none;
+    }
+    a.ih-cloud-api-guide:hover { text-decoration: underline; }
     .row[hidden] { display: none; }
     .row-paint {
       flex-direction: column;
@@ -402,59 +579,6 @@
     button.ih-color-swatch[aria-checked="true"] {
       box-shadow: 0 0 0 2px var(--fg);
     }
-    .about-lead { margin: 0; font-size: 16px; line-height: 1.35; }
-    .about-feedback summary {
-      width: fit-content;
-      margin: 8px auto;
-      list-style: none;
-      cursor: pointer;
-      font-weight: 500;
-      height: 36px;
-      line-height: 34px;
-      padding: 0 16px;
-      border: 1px solid var(--btn-border);
-      border-radius: 16px;
-    }
-    .about-feedback summary::-webkit-details-marker { display: none; }
-    .about-feedback summary::marker { content: ""; }
-    .about-feedback summary:hover { filter: brightness(1.08); }
-    .about-feedback[open] summary { margin-bottom: 0; }
-    .group > .row:has(+ .about-feedback) { border-bottom: 1px solid var(--line); }
-    .about-feedback .row:last-child { border-bottom: none; }
-    a.about-home {
-      color: #0A84FF;
-      text-decoration: underline;
-      text-underline-offset: 3px;
-    }
-    .about-optional {
-      margin-left: 0.35em;
-      font-size: 13px;
-      font-weight: 400;
-      color: var(--muted);
-    }
-    .row-about-note {
-      flex-direction: column;
-      align-items: stretch;
-      gap: 8px;
-    }
-    .row-about-note > .row-text { flex: none; }
-    .row-about-note textarea {
-      flex: none;
-      width: 100%;
-      min-height: 96px;
-      margin: 0;
-      padding: 8px 10px;
-      border: 1px solid var(--btn-border);
-      border-radius: 8px;
-      background: transparent;
-      color: var(--fg);
-      font: inherit;
-      line-height: 1.35;
-      resize: vertical;
-    }
-    #about_send { margin-left: auto; }
-    #about_feedback_status { margin: 0; flex: 1; min-width: 0; }
-    button.about-sent:disabled { opacity: 1; color: var(--muted); }
     ul.sites { margin: 0; padding: 0; list-style: none; }
     ul.sites:empty { display: none; }
     ul.sites .row {
@@ -472,8 +596,100 @@
       font-size: 13px;
       border-radius: 12px;
     }
+    .model-compare {
+      width: 100%;
+      margin: 0;
+      border-collapse: collapse;
+      font-size: 14px;
+      line-height: 1.35;
+    }
+    .model-compare th,
+    .model-compare td {
+      padding: 8px 16px 8px 0;
+      font-weight: 400;
+      text-align: start;
+      vertical-align: baseline;
+    }
+    .model-compare th {
+      color: var(--fg);
+      white-space: nowrap;
+    }
+    .model-compare td { color: var(--muted); }
+    .model-compare .stars {
+      width: 5em;
+      color: var(--fg);
+      letter-spacing: 0.06em;
+      white-space: nowrap;
+    }
+    .model-compare td:last-child { padding-right: 0; }
+    .top-actions {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .top-actions button.top-guide { margin-left: 0; }
+    #about #donate_open { margin-left: auto; }
+    .donate-qr-wrap {
+      display: flex;
+      justify-content: center;
+      margin: 12px 0 0;
+    }
+    .donate-qr-wrap[hidden],
+    #donate_intl_go[hidden],
+    #donate_note[hidden],
+    #donate_cny_wrap[hidden],
+    #donate_intl_wrap[hidden],
+    #donate_intl_range[hidden],
+    #donate_intl_error[hidden] { display: none; }
+    #donate_qr {
+      display: block;
+      width: min(220px, 100%);
+      height: auto;
+      object-fit: contain;
+      border-radius: 12px;
+      background: #fff;
+    }
+    .donate-intl-amounts { margin: 10px 0 4px; }
+    .donate-intl-custom {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .donate-intl-usd {
+      flex-shrink: 0;
+      color: var(--muted);
+    }
+    .donate-intl-custom input { flex: 1; min-width: 0; }
+    #donate_intl_custom::placeholder {
+      color: #b0b4ba;
+      opacity: 1;
+    }
+    @media (prefers-color-scheme: dark) {
+      #donate_intl_custom::placeholder { color: #7c8187; }
+    }
+    .donate-intl-range { margin: 6px 0 0; }
+    .donate-intl-thanks {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.3;
+    }
+    #donate_note {
+      margin: 12px 0 0;
+    }
+    #donate_note .donate-heart {
+      color: #e31c3d;
+      margin-left: 0.15em;
+    }
+    #credits_orders .order-thanks {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
   </style>
   <link rel="stylesheet" href="options-new-dots.css" />
+  <link rel="stylesheet" href="options-about.css" />
   <link rel="stylesheet" href="content.css" />
 </head>
 <body>
@@ -484,7 +700,9 @@
         <span id="brand_name" class="top-name"></span>
         <span id="brand_version" class="top-version"></span>
       </span>
-      <button type="button" class="top-guide" id="welcome_open" data-i18n>How to use</button>
+      <span class="top-actions">
+        <button type="button" class="top-guide" id="welcome_open" data-i18n>How to use</button>
+      </span>
     </div>
   </header>
   <div class="layout">
@@ -493,6 +711,7 @@
     <a href="#display" data-i18n>Display</a>
     <a href="#content" data-i18n>Content</a>
     <a href="#analysis" data-i18n>Analysis</a>
+    <a href="#cloud-credits" data-i18n>Cloud credits</a>
     <a href="#auto-analyze" data-i18n>Auto analyze</a>
     <a href="#storage" data-i18n>Storage</a>
     <a href="#settings-restore" data-i18n>Settings restore</a>
@@ -500,7 +719,7 @@
   </nav>
   <main>
     <label class="page-demo">
-      <input type="checkbox" id="ih_highlight_options_page" checked>
+      <input type="checkbox" id="ih_highlight_options_page">
       <span data-i18n>Highlight this page to preview</span>
     </label>
     <section id="highlight">
@@ -509,7 +728,7 @@
     <div class="row row-paint" data-option-id="ih_paint_style">
       <div class="row-text">
         <div class="row-title" data-i18n>Highlight style</div>
-        <p class="row-desc" data-i18n>PDFs fall back to underline.</p>
+        <p class="row-desc" data-i18n>For technical reasons, PDFs only support underline; other styles are not available yet.</p>
       </div>
       <div class="ih-paint-cards" id="ih_paint_style" role="radiogroup" aria-label="Highlight style" data-i18n-attr="aria-label"></div>
     </div>
@@ -550,7 +769,7 @@
         <div class="row-title" data-i18n>Normalize scale</div>
         <p class="row-desc" data-i18n>Scale the highlight so the most surprising text is at full highlight.</p>
       </div>
-      <input type="checkbox" id="ih_fade_norm">
+      <input type="checkbox" id="ih_fade_norm" checked>
     </label>
     <div class="row row-slider row-nested" id="ih_fade_norm_row" hidden>
       <div class="row-slider-top">
@@ -613,29 +832,71 @@
       </div>
       <input type="checkbox" id="ih_article_only">
     </label>
+    <label class="row" data-option-id="ih_dynamic_track">
+      <div class="row-text">
+        <div class="row-title" data-i18n>Dynamic tracking</div>
+        <p class="row-desc" data-i18n>While highlighting is on, follow scrolling and page changes to paint nearby text that is not highlighted yet.</p>
+      </div>
+      <input type="checkbox" id="ih_dynamic_track" checked>
+    </label>
+    <label class="row" data-option-id="ih_from_viewport" hidden>
+      <div class="row-text">
+        <div class="row-title" data-i18n>Start from the current scroll position</div>
+        <p class="row-desc" data-i18n>Turn on to leave out text above the current scroll position.</p>
+      </div>
+      <input type="checkbox" id="ih_from_viewport">
+    </label>
     </div>
     </section>
     <section id="analysis">
     <h2 data-i18n>Analysis</h2>
     <div class="group">
-    <div class="row" data-option-id="analyze_pref">
-      <div class="row-text">
-        <div class="row-title" data-i18n>Where to analyze</div>
-        <p class="row-desc" data-i18n>On-device only never uploads, and never uses the cloud.</p>
-      </div>
-      <select id="analyze_pref" aria-label="Where to analyze" data-i18n-attr="aria-label">
-        <option value="auto" data-i18n>Auto</option>
-        <option value="local" disabled data-i18n>On this device only</option>
-        <option value="cloud" data-i18n>Cloud only</option>
-      </select>
-    </div>
-    <div class="row" data-option-id="ih_cloud_model">
-      <div class="row-text">
-        <div class="row-title" data-i18n>Cloud model</div>
-      </div>
-      <select id="ih_cloud_model" aria-label="Cloud model" data-i18n-attr="aria-label"></select>
-    </div>
     <div class="row">
+      <div class="row-text">
+        <div class="row-title" data-i18n>Model information</div>
+        <table class="model-compare">
+          <tbody>
+            <tr>
+              <th scope="row">Gemma 3 270M</th>
+              <td class="stars" aria-label="3 stars" data-i18n-attr="aria-label">★★★</td>
+              <td data-i18n>Supports on-device WebGPU</td>
+            </tr>
+            <tr>
+              <th scope="row">Qwen3 0.6B</th>
+              <td class="stars" aria-label="4 stars" data-i18n-attr="aria-label">★★★★</td>
+              <td data-i18n>On-device WebGPU; tokenization and highlighting are more reasonable</td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="row-desc model-note" data-i18n>PS: Why not a larger model? Larger models "know" too much. In tests, their highlights are too sparse and do not match how people read.</p>
+      </div>
+    </div>
+    <div class="row" data-option-id="analyze_pref">
+      <div class="row-text" data-option-id="ih_cloud_model">
+        <div class="row-title" data-i18n>Model select</div>
+        <p class="row-desc" data-i18n>On-device never uploads, and never uses the cloud.</p>
+      </div>
+      <select id="analyze_pref" aria-label="Model select" data-i18n-attr="aria-label"></select>
+    </div>
+    <div class="row" id="ih_cloud_api_base_row" data-option-id="ih_cloud_api_base">
+      <div class="row-text">
+        <div class="row-title" data-i18n>Custom cloud API URL</div>
+        <p class="row-desc" data-i18n>Cloud analysis uses your custom service URL.</p>
+      </div>
+      <input type="checkbox" id="ih_cloud_api_base_enabled" aria-labelledby="ih_cloud_api_base_enabled_label">
+    </div>
+    <div class="row row-nested" id="ih_cloud_api_base_wrap" hidden>
+      <div class="row-text">
+        <div class="ih-cloud-api-head">
+          <span id="ih_cloud_api_base_enabled_label" class="row-title" data-i18n>API base URL</span>
+          <a class="ih-cloud-api-guide" href="self-hosted-guide.html" target="_blank" rel="noopener noreferrer" data-i18n>How to self-host the service</a>
+        </div>
+        <p id="ih_cloud_api_base_error" class="row-desc auto-site-error" hidden></p>
+      </div>
+      <input type="text" id="ih_cloud_api_base" class="auto-site-input" spellcheck="false" autocomplete="off"
+        placeholder="http://127.0.0.1:5001" data-i18n-attr="placeholder" />
+    </div>
+    <div class="row" id="ih_cloud_latency_row">
       <div class="row-text">
         <div class="row-title" data-i18n>Cloud network latency</div>
         <p class="row-desc">
@@ -648,21 +909,179 @@
     <div class="row">
       <div class="row-text">
         <div class="row-title" data-i18n>On-device WebGPU</div>
-        <p id="webgpu_desc" class="row-desc" data-i18n>Checking…</p>
+        <p id="webgpu_desc" class="row-desc ih-webgpu-status" data-i18n>Checking…</p>
       </div>
     </div>
     <div class="row">
       <div class="row-text">
         <div class="row-title" data-i18n>On-device model</div>
-        <p id="model_desc" class="row-desc" data-i18n>Reading…</p>
+        <p id="local_models_hint" class="row-desc" hidden></p>
       </div>
-      <div class="row-btns">
-        <button type="button" id="local_init" data-i18n>Prepare</button>
-        <button type="button" id="model_clear" disabled data-i18n>Clear</button>
+    </div>
+    <div id="local_models_list" class="group local-models-list" aria-live="polite"></div>
+    <div class="row">
+      <div class="row-text">
+        <div class="row-title" data-i18n>On-device WebGPU memory release timeout</div>
+        <p class="row-desc" data-i18n>After on-device analysis stops, GPU memory is kept briefly for faster reuse. Release it if idle longer than this.</p>
+      </div>
+      <select id="webgpu_linger_sec" aria-label="On-device WebGPU memory release timeout" data-i18n-attr="aria-label"></select>
+    </div>
+    </div>
+    </section>
+    <section id="cloud-credits">
+    <h2 data-i18n>Cloud credits</h2>
+    <div class="group">
+    <div class="row">
+      <div class="row-text">
+        <p id="credits_notice" class="row-title" hidden></p>
+        <ul class="credits-billing-intro row-desc">
+          <li data-i18n>Full-speed cloud analysis uses credits. When you have no credits left, analysis automatically switches to the free API, which is rate-limited.</li>
+          <li data-i18n>Cloud analysis is billed by usage in points. One point covers roughly one screen of text. Failed analyses are not charged; cached analyses are not charged.</li>
+          <li data-i18n>To avoid waste, analysis pauses after about 32 points on the same page. Tap "Continue" to analyze more.</li>
+          <li data-i18n>Credits need no account; your API key is your balance account—keep it safe.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="row" data-option-id="cloud_credits">
+      <div class="row-text">
+        <div class="credits-title">
+          <div class="credits-title-leading">
+            <span class="row-title" data-i18n>Remaining credits</span>
+            <button type="button" id="credits_refresh" class="icon-btn" aria-label="Refresh credits" data-i18n-attr="aria-label">
+              <svg viewBox="0 -960 960 960" aria-hidden="true"><path d="M480-160q-134 0-227-93t-93-227q0-134 93-227t227-93q69 0 132 28.5T720-690v-110h80v280H520v-80h168q-32-56-87.5-88T480-720q-100 0-170 70t-70 170q0 100 70 170t170 70q77 0 139-44t87-116h84q-28 106-114 173t-196 67Z"/></svg>
+            </button>
+            <button type="button" id="credits_add" class="credits-title-add" data-i18n>Buy credits</button>
+          </div>
+          <div class="credits-api-key">
+            <span class="credits-api-key-label" data-i18n>API Key</span>
+            <div class="credits-api-key-chip">
+              <span id="credits_api_key" class="credits-api-key-value is-pending" aria-hidden="true">—</span>
+              <div class="credits-api-key-actions">
+                <button type="button" id="credits_copy" class="credits-api-key-btn credits-copy-btn" aria-label="Copy API key" data-i18n-attr="aria-label">
+                  <svg class="icon-copy icon-stroke" viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                  </svg>
+                  <svg class="icon-done icon-stroke" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg>
+                </button>
+                <button type="button" id="credits_replace_key" class="credits-api-key-btn" aria-label="Replace API key" data-i18n-attr="aria-label">
+                  <svg class="icon-stroke" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p id="credits_balance" class="row-desc" data-i18n>Reading…</p>
+        <p id="credits_status" class="row-desc" hidden></p>
+      </div>
+    </div>
+    <div class="row side-nav-target" id="credit-orders">
+      <div class="row-text">
+        <div class="row-title" data-i18n>Recent orders</div>
+        <ul id="credits_orders" class="sites"></ul>
       </div>
     </div>
     </div>
     </section>
+    <dialog id="credits_purchase_dialog">
+      <form method="dialog">
+        <h3 data-i18n>Buy credits</h3>
+        <span class="credits-pick-label" data-i18n>Currency</span>
+        <div id="credits_currency" class="credits-currency">
+          <button type="button" data-currency="CNY" aria-pressed="false" data-i18n>CNY</button>
+          <button type="button" data-currency="USD" aria-pressed="false">USD</button>
+        </div>
+        <div class="credits-pick-heading">
+          <span class="credits-pick-label" data-i18n>Credit pack</span>
+          <span class="credits-pick-hint" data-i18n>One point covers roughly one screen of text.</span>
+        </div>
+        <ul id="credits_pack_list" class="credits-pick-list"></ul>
+        <p class="credits-terms" data-i18n>Credits are valid for 12 months from the date of purchase.</p>
+        <span class="credits-pick-label" data-i18n>Payment method</span>
+        <ul id="credits_pay_list" class="credits-pick-list"></ul>
+        <div class="credits-dialog-btns">
+          <button type="submit" value="cancel" data-i18n>Cancel</button>
+          <button type="button" id="credits_purchase_go" data-i18n>Continue to pay</button>
+        </div>
+        <p class="credits-terms" data-i18n-html>By paying, you agree to the <a href="https://info-lens.app/info-highlight-terms" target="_blank" rel="noopener noreferrer">Terms of Service</a> and <a href="https://info-lens.app/info-highlight-privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.</p>
+      </form>
+    </dialog>
+    <dialog id="credits_replace_warn_dialog">
+      <form method="dialog">
+        <h3 data-i18n>Replace API key</h3>
+        <p class="row-desc" data-i18n>After replacing, this extension uses the new API key. The old API key's credits and orders stay with the old API key, and you can keep using them by pasting the old API key back, so copy your current API key first.</p>
+        <div class="credits-dialog-btns">
+          <button type="submit" value="cancel" data-i18n>Cancel</button>
+          <button type="button" id="credits_replace_warn_go" data-i18n>Continue</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="donate_dialog">
+      <form method="dialog">
+        <h3 id="donate_title" data-i18n>Support development</h3>
+        <span class="credits-pick-label" data-i18n>Currency</span>
+        <div id="donate_currency" class="credits-currency">
+          <button type="button" data-currency="CNY" aria-pressed="false" data-i18n>CNY</button>
+          <button type="button" data-currency="USD" aria-pressed="false">USD</button>
+        </div>
+        <div id="donate_cny_wrap" hidden>
+          <span class="credits-pick-label" data-i18n>Payment method</span>
+          <ul id="donate_pay_list" class="credits-pick-list">
+            <li>
+              <label class="row credits-pay">
+                <input type="radio" name="donate_provider" value="alipay">
+                <span class="credits-pay-copy" data-i18n>Alipay</span>
+              </label>
+            </li>
+            <li>
+              <label class="row credits-pay">
+                <input type="radio" name="donate_provider" value="wechat">
+                <span class="credits-pay-copy" data-i18n>WeChat Pay</span>
+              </label>
+            </li>
+          </ul>
+          <div id="donate_qr_wrap" class="donate-qr-wrap" hidden>
+            <img id="donate_qr" alt="">
+          </div>
+        </div>
+        <div id="donate_intl_wrap" hidden>
+          <div id="donate_intl_presets" class="credits-currency donate-intl-amounts" role="group">
+            <button type="button" data-cents="300">$3</button>
+            <button type="button" data-cents="500" aria-pressed="true">$5</button>
+            <button type="button" data-cents="1000">$10</button>
+          </div>
+          <label class="credits-pick-label" for="donate_intl_custom" data-i18n>Other amount</label>
+          <div class="donate-intl-custom">
+            <span class="donate-intl-usd" aria-hidden="true">$</span>
+            <input type="text" id="donate_intl_custom" inputmode="decimal" autocomplete="off" spellcheck="false" placeholder="2.00–200.00" aria-label="Other amount" data-i18n-attr="aria-label">
+          </div>
+          <p id="donate_intl_range" class="row-desc donate-intl-range" hidden data-i18n>Enter an amount between $2.00 and $200.00.</p>
+          <p class="donate-intl-thanks" data-i18n>Includes a small amount of cloud credits</p>
+          <p id="donate_intl_error" class="row-desc" hidden></p>
+        </div>
+        <div class="credits-dialog-btns">
+          <button type="submit" value="cancel" data-i18n>Close</button>
+          <button type="button" id="donate_intl_go" hidden data-i18n>Continue to pay</button>
+        </div>
+        <p id="donate_note" class="row-desc"><span data-i18n>Thank you so much for supporting Info Highlight.</span><span class="donate-heart" aria-hidden="true">♥</span></p>
+      </form>
+    </dialog>
+    <dialog id="credits_replace_input_dialog">
+      <form method="dialog" id="credits_replace_form">
+        <h3 data-i18n>Replace API key</h3>
+        <label class="credits-pick-label" for="credits_replace_input" data-i18n>New API key</label>
+        <input type="text" id="credits_replace_input" class="credits-key-input" autocomplete="off" spellcheck="false" inputmode="verbatim">
+        <div id="credits_replace_history_wrap" class="credits-key-prev-wrap" hidden>
+          <span class="credits-key-prev-label" data-i18n>Last used</span>
+          <a id="credits_replace_history" class="credits-key-prev" href="#"></a>
+        </div>
+        <p id="credits_replace_error" class="row-desc" hidden></p>
+        <div class="credits-dialog-btns">
+          <button type="submit" value="cancel" data-i18n>Cancel</button>
+          <button type="submit" id="credits_replace_submit" value="save" data-i18n>Save</button>
+        </div>
+      </form>
+    </dialog>
     <section id="auto-analyze">
     <h2 data-i18n>Auto analyze</h2>
     <div class="group">
@@ -704,34 +1123,14 @@
     </div>
     </div>
     </section>
-    <section id="about">
-    <h2 data-i18n>About</h2>
-    <div class="group">
-    <div class="row">
-      <div class="row-text">
-        <p class="about-lead" data-i18n-html>Info Highlight is part of <a class="about-home" href="https://info-lens.app/" target="_blank" rel="noopener noreferrer">Info Lens</a>, a toolbox for exploring the informational nature of LLMs and language.</p>
-      </div>
-    </div>
-    <details class="about-feedback" id="about_feedback">
-      <summary data-i18n>Feedback</summary>
-      <div class="row row-about-note">
-        <p class="row-desc" id="about_prompt" data-i18n>We'd love to hear from you. Please tell us anything you'd like.</p>
-        <textarea id="about_message" rows="4" maxlength="4000" aria-labelledby="about_prompt"></textarea>
-      </div>
-      <div class="row">
-        <label class="row-title" for="about_contact"><span data-i18n>Contact</span> <span data-i18n class="about-optional">optional</span></label>
-        <input type="text" id="about_contact" maxlength="200" autocomplete="off" spellcheck="false" aria-label="Contact, optional" data-i18n-attr="aria-label">
-      </div>
-      <div class="row">
-        <p id="about_feedback_status" class="row-desc" hidden></p>
-        <button type="button" id="about_send" disabled>Send</button>
-      </div>
-    </details>
-    </div>
-    </section>
+    <section id="about"></section>
   </main>
   </div>
+  <script src="config.js"></script>
+  <script src="api-base.js"></script>
+  <script src="options-about-zh.js"></script>
   <script src="zh.js"></script>
+  <script src="options-i18n.js"></script>
   <script src="i18n.js"></script>
   <script src="cache/ring-store.js"></script>
   <script src="analyzeCache.js"></script>
@@ -740,12 +1139,17 @@
   <script src="auto-sites.js"></script>
   <script src="highlightStyle.js"></script>
   <script src="optionDefaults.js"></script>
+  <script src="dynamicTrack.js"></script>
   <script src="sw/action-dot.js"></script>
   <script src="options-attention.js"></script>
   <script src="options-catalog.js"></script>
   <script src="options-new-dots.js"></script>
+  <script src="options-nav.js"></script>
+  <script src="aboutNote.js"></script>
+  <script src="options-about.js"></script>
+  <script src="creditCustomUsd.js"></script>
   <script src="options.js"></script>
-  <!-- SYNC: background.js CONTENT_JS，无 drop-stale / tokenTip / 第二份 highlightStyle / 第二份 local/userErrors.js -->
+  <!-- SYNC: background.js CONTENT_JS，无 drop-stale / tokenTip / 第二份 highlightStyle / 第二份 local/userErrors.js。anonymousSiteDomain 在选项页直接返回。 -->
   <script src="vendor/Readability.js"></script>
   <script src="extractRootPatches.js"></script>
   <script src="articleRoot.js"></script>
@@ -764,6 +1168,7 @@
   <script src="page-map.js"></script>
   <script src="analyzeRun.js"></script>
   <script src="auto-nudge.js"></script>
+  <script src="anonymousSiteDomain.js"></script>
   <script src="content.js"></script>
   <script src="options-highlight.js"></script>
 </body>

@@ -290,6 +290,7 @@ globalThis.IH_tokenTip ||= (function () {
   }
 
   function render(tok) {
+    const { tr } = globalThis.IH_i18n;
     const el = ensurePanel();
     el.replaceChildren();
     const head = document.createElement('div');
@@ -297,7 +298,7 @@ globalThis.IH_tokenTip ||= (function () {
     head.textContent = visualize(tok.raw);
     el.appendChild(head);
     const bits = globalThis.IH_tokenBits(tok);
-    if (bits != null) appendRow(el, 'information:', `${sig3(bits)} bits`);
+    if (bits != null) appendRow(el, tr('information:'), tr('{value} bits', { value: sig3(bits) }));
     appendTopk(el, tok);
     const foot = document.createElement('div');
     foot.className = 'model';
@@ -306,7 +307,7 @@ globalThis.IH_tokenTip ||= (function () {
       if (deviceName) foot.append(document.createElement('br'), `@ ${deviceName}`);
       foot.append(document.createElement('br'));
     }
-    foot.append(document.createElement('br'), '[Options - Hover for details]');
+    foot.append(document.createElement('br'), tr('[Options - Hover for details]'));
     el.appendChild(foot);
   }
 

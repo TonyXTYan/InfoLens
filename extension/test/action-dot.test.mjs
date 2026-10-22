@@ -59,6 +59,18 @@ test('每个插件都接入蓝点链路，且有 16/32 -dot 图标', () => {
     const html = readFileSync(`${ROOT}${name}/options.html`, 'utf8');
     assert.match(html, /options-new-dots\.css/, `${name} 选项页缺蓝点样式`);
     assert.match(html, /options-new-dots\.js/, `${name} 选项页缺蓝点脚本`);
+    assert.match(html, /options-about\.css/, `${name} 选项页缺 About 样式`);
+    assert.match(html, /options-about\.js/, `${name} 选项页缺 About 脚本`);
+    assert.match(html, /<section id="about">/, `${name} 选项页缺 About 挂载点`);
+    assert.match(html, /options-shell\.css/, `${name} 选项页缺 shell 样式`);
+    assert.match(html, /options-nav\.js/, `${name} 选项页缺侧栏导航脚本`);
+    assert.match(html, /class="side-nav"/, `${name} 选项页缺侧栏`);
+    if (name === 'semantic-highlight') {
+      assert.match(html, /options-i18n\.js/, `${name} 选项页缺 i18n 脚本`);
+    }
+    if (name === 'info-highlight') {
+      assert.match(html, /options-i18n\.js/, `${name} 选项页缺共享 i18n 内核`);
+    }
     for (const file of ['icon16-dot.png', 'icon32-dot.png']) {
       assert.ok(existsSync(`${ROOT}${name}/icons/${file}`), `${name} 缺 ${file}`);
     }
@@ -100,12 +112,15 @@ test('Info Highlight 本版：升级后 intensity / one-tone / auto-sites / clou
   assert.ok(!seed.includes('ih_auto_sites'));
   assert.ok(!seed.includes('ih_cloud_model'));
   assert.ok(!seed.includes('ih_article_only'));
+  assert.ok(!seed.includes('ih_from_viewport'));
+  assert.ok(!seed.includes('ih_dynamic_track'));
   assert.ok(!seed.includes('ih_highlight_options_page'));
   assert.ok(!seed.includes('ih_word_merge'));
   assert.ok(!seed.includes('ih_paint_style'));
   assert.ok(!seed.includes('ih_highlight_color'));
   assert.ok(!seed.includes('ih_fade_min_pct'));
   assert.ok(!seed.includes('ih_fade_norm'));
+  assert.ok(!seed.includes('cloud_credits'));
 
   const env = loadAttention(
     { action: { default_icon: icons }, update_url: 'https://example' },
@@ -118,7 +133,7 @@ test('Info Highlight 本版：升级后 intensity / one-tone / auto-sites / clou
   const unseen = await env.sandbox.IL_optionsAttention.unseen(catalog);
   assert.equal(
     unseen.slice().sort().join(','),
-    'ih_article_only,ih_auto_sites,ih_cloud_model,ih_fade_min_pct,ih_fade_norm,ih_highlight_color,ih_max_highlight_alpha,ih_paint_style,ih_two_tier,ih_word_merge',
+    'cloud_credits,ih_article_only,ih_auto_sites,ih_cloud_api_base,ih_cloud_model,ih_dynamic_track,ih_fade_min_pct,ih_fade_norm,ih_from_viewport,ih_highlight_color,ih_max_highlight_alpha,ih_paint_style,ih_two_tier,ih_word_merge',
   );
 });
 

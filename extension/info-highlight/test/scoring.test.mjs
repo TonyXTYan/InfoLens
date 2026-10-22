@@ -102,6 +102,17 @@ test('alignUtf16Offsets：▁ 换成空格后贴在 cursor', () => {
   assert.deepEqual(S.alignUtf16Offsets(text, [1], () => '\u2581Hi', new Set()), [[0, 2]]);
 });
 
+test('alignUtf16Offsets：Ġ 换成空格后贴在 cursor', () => {
+  const text = 'Hi';
+  assert.deepEqual(S.alignUtf16Offsets(text, [1], () => '\u0120Hi', new Set()), [[0, 2]]);
+});
+
+test('alignQwenByteTokens：换行与 ASCII', () => {
+  const nl = S.alignQwenByteTokens('a\nb', ['a', '\u010A', 'b']);
+  assert.deepEqual(nl, [{ start: 0, end: 1 }, { start: 1, end: 2 }, { start: 2, end: 3 }]);
+  assert.deepEqual(S.alignQwenByteTokens('hello', ['hello']), [{ start: 0, end: 5 }]);
+});
+
 test('alignUtf16Offsets：<0xXX> 拼成原文字符，共用 span', () => {
   const text = 'hello\u00a0world';
   const piece = (id) => ({ 1: 'hello', 432: '<0xC2>', 398: '<0xA0>', 2: 'world' }[id]);
@@ -195,11 +206,31 @@ test('bpeFromRows 跳过 BOS，产出 Analyze 形状', () => {
   assert.equal(out.bpe_strings[1].raw, 'b');
 });
 
-test('bpeFromRows 无 BOS 空 span 则报错', () => {
+test('bpeFromRows 无前导空 span 则用已插入的首 token 分', () => {
+  const out = S.bpeFromRows({
+    rows: [
+      { p: 0.25, pred: [[1, 0.25]] },
+      { p: 0.75, pred: [[2, 0.75]] },
+    ],
+    ids: [1, 2],
+    offsets: [
+      [0, 1],
+      [1, 2],
+    ],
+    text: 'ab',
+    decodeId: String,
+  });
+  assert.equal(out.bpe_strings.length, 2);
+  assert.equal(out.bpe_strings[0].raw, 'a');
+  assert.equal(out.bpe_strings[0].real_topk[1], 0.25);
+  assert.equal(out.bpe_strings[1].raw, 'b');
+});
+
+test('bpeFromRows 无前导空 span 且行不够则报错', () => {
   assert.throws(
     () =>
       S.bpeFromRows({
-        rows: [{ p: 1, pred: [] }, { p: 1, pred: [] }],
+        rows: [{ p: 1, pred: [] }],
         ids: [1, 2],
         offsets: [
           [0, 1],
@@ -208,7 +239,7 @@ test('bpeFromRows 无 BOS 空 span 则报错', () => {
         text: 'ab',
         decodeId: String,
       }),
-    /leading empty BOS span/,
+    /longer than rows/,
   );
 });
 

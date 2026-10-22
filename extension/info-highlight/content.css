@@ -85,3 +85,13 @@
   text-underline-offset: 3px;
   text-decoration-skip-ink: none;
 }
+
+/* debug：划出可提取文本（CSS Custom Highlight + text-decoration） */
+::highlight(ih-extract-preview) {
+  text-decoration-line: underline;
+  text-decoration-style: solid;
+  text-decoration-color: #1e6fff;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+  text-decoration-skip-ink: none;
+}

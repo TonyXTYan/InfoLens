@@ -9,24 +9,35 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const dir = dirname(fileURLToPath(import.meta.url));
+const sharedRoot = join(dir, '../../shared');
+
+test('选项页预览高亮：setEnabled 带 icon 触发来源', () => {
+  const src = readFileSync(join(dir, '../options-highlight.js'), 'utf8');
+  assert.match(src, /api\.setEnabled\(box\.checked, 'icon'\)/);
+});
 
 test('选项页挂网页管线，无 tokenTip，实验项标在所属组', () => {
   const html = readFileSync(join(dir, '../options.html'), 'utf8');
+  const shellCss = readFileSync(join(sharedRoot, 'options-shell.css'), 'utf8');
   assert.match(html, /<nav class="side-nav"[\s\S]*?<main>[\s\S]*?id="ih_highlight_options_page"/);
-  assert.match(html, /\.top \{[\s\S]*?position: sticky;/);
-  assert.match(html, /\.side-nav \{[\s\S]*?position: sticky;/);
-  assert.match(html, /\.side-nav a \{[\s\S]*?font-size: 16px;/);
-  assert.match(html, /\.side-nav a\.nav-is-new::after/);
-  assert.match(html, /\.side-nav a\[aria-current="true"\]/);
-  assert.match(html, /padding: 8px 0 100vh/);
+  assert.match(html, /href="options-shell\.css"/);
+  assert.match(shellCss, /\.top \{[\s\S]*?position: sticky;/);
+  assert.match(shellCss, /\.side-nav \{[\s\S]*?position: sticky;/);
+  assert.match(shellCss, /\.side-nav a \{[\s\S]*?font-size: 16px;/);
+  assert.match(shellCss, /\.side-nav a\.nav-is-new::after/);
+  assert.match(shellCss, /\.side-nav a\[aria-current="true"\]/);
+  assert.match(shellCss, /padding: 8px 0 100vh/);
+  const navJs = readFileSync(join(sharedRoot, 'options-nav.js'), 'utf8');
   const optJs = readFileSync(join(dir, '../options.js'), 'utf8');
-  assert.match(optJs, /scrollIntoView\(\{ block: 'start' \}\)/);
-  assert.match(optJs, /function syncNavCurrent/);
-  assert.match(optJs, /setAttribute\('aria-current', 'true'\)/);
-  assert.match(optJs, /addEventListener\('scroll', scheduleNavCurrent/);
+  assert.match(html, /src="options-nav\.js"/);
+  assert.match(navJs, /scrollIntoView\(\{ block: 'start' \}\)/);
+  assert.match(navJs, /function syncNavCurrent/);
+  assert.match(navJs, /setAttribute\('aria-current', 'true'\)/);
+  assert.match(navJs, /addEventListener\('scroll', scheduleNavCurrent/);
+  assert.match(optJs, /IL_optionsNav\.init\(\)/);
   assert.match(html, /<section id="highlight">/);
   assert.match(html, /<section id="settings-restore">/);
-  assert.match(html, /id="ih_highlight_options_page" checked>\s*<span data-i18n>Highlight this page to preview<\/span>/);
+  assert.match(html, /id="ih_highlight_options_page">\s*<span data-i18n>Highlight this page to preview<\/span>/);
   assert.ok(html.indexOf('id="ih_highlight_options_page"') < html.indexOf('>Highlight</h2>'));
   assert.ok(html.indexOf('class="page-demo"') < html.indexOf('>Highlight</h2>'));
   assert.match(html, /\.page-demo \{[\s\S]*?justify-content: flex-end;/);
@@ -52,7 +63,7 @@ test('选项页挂网页管线，无 tokenTip，实验项标在所属组', () =>
   assert.match(html, /\.row\[hidden\] \{ display: none; \}/);
   assert.match(html, /class="ih-hue"/);
   assert.match(html, /ih-color-swatch-ink/);
-  assert.match(html, /PDFs fall back to underline/);
+  assert.match(html, /For technical reasons, PDFs only support underline/);
   assert.doesNotMatch(html, /Ink for the text-color style/);
   assert.doesNotMatch(html, /How strong the highlight looks/);
   assert.doesNotMatch(html, /<select id="ih_paint_style"/);
@@ -77,6 +88,7 @@ test('选项页挂网页管线，无 tokenTip，实验项标在所属组', () =>
   assert.match(html, /src="wordMerge\.js"/);
   assert.match(html, /src="auto-nudge\.js"/);
   assert.ok(html.indexOf('src="auto-nudge.js"') < html.indexOf('src="content.js"'));
+  assert.doesNotMatch(html, /model-nudge\.js/);
   assert.match(html, /src="content\.js"/);
   assert.match(html, /src="options-page-flags\.js"/);
   assert.match(html, /href="content\.css"/);
@@ -107,12 +119,22 @@ test('选项页挂网页管线，无 tokenTip，实验项标在所属组', () =>
   );
   const opts = readFileSync(join(dir, '../options.js'), 'utf8');
   const defs = readFileSync(join(dir, '../optionDefaults.js'), 'utf8');
-  assert.match(defs, /ih_highlight_options_page: true/);
+  assert.match(defs, /ih_highlight_options_page: false/);
   assert.match(defs, /ih_word_merge: false/);
   assert.match(defs, /ih_article_only: false/);
+  assert.match(defs, /ih_from_viewport: true/);
+  assert.match(defs, /ih_dynamic_track: true/);
+  assert.match(catalog, /'ih_from_viewport'/);
+  assert.match(catalog, /'ih_dynamic_track'/);
+  assert.doesNotMatch(
+    catalog.slice(catalog.indexOf('globalThis.IL_OPTIONS_SEED_SEEN')),
+    /ih_from_viewport/,
+  );
   assert.match(opts, /IH_optionDefaults/);
   assert.doesNotMatch(opts, /ih_article_only: false/);
   assert.match(opts, /IH_optionsPageReady/);
+  const beforeReady = opts.slice(0, opts.indexOf('.finally(() => resolvePageReady())'));
+  assert.doesNotMatch(beforeReady.slice(beforeReady.lastIndexOf('Promise.all([')), /Credits/);
   assert.match(opts, /COLOR_INK/);
   assert.match(opts, /Black \/ white/);
   assert.match(opts, /KEY_TEXT_COLOR/);
@@ -156,36 +178,50 @@ test('选项页挂网页管线，无 tokenTip，实验项标在所属组', () =>
 
 test('选项页抽字忽略只标主文；分析不单独指定后端', () => {
   const pageMap = readFileSync(join(dir, '../page-map.js'), 'utf8');
+  const pageMapCode = pageMap.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
   assert.match(pageMap, /IH_OPTIONS_PAGE \? false : articleOnly/);
   assert.match(pageMap, /color-mix\(in srgb-linear/);
   assert.match(pageMap, /highlightForFadeRange/);
-  assert.match(pageMap, /--ih-fade-pct-/);
+  assert.doesNotMatch(pageMapCode, /--ih-(fade|token)-pct/);
   const flags = readFileSync(join(dir, '../options-page-flags.js'), 'utf8');
   assert.match(flags, /IH_OPTIONS_PAGE = true/);
-  assert.match(flags, /IL_TEXT_MAP_EXTRA_EXCLUDE \+= ', #cache_desc'/);
+  assert.match(flags, /IL_TEXT_MAP_EXTRA_EXCLUDE \+= ', #cache_desc, \.model-compare \.stars'/);
   assert.match(flags, /IH_tokenTip/);
   const bg = readFileSync(join(dir, '../background.js'), 'utf8');
   assert.match(bg, /'wordMerge\.js'/);
   assert.doesNotMatch(bg, /isOwnOptionsPage/);
-  assert.match(bg, /handleAnalyze\(text, !!msg\.skipCache, false, sender\.tab\?\.id, msg\.cloudModel\)/);
-  assert.match(bg, /fetchTokensWithAutoFallback/);
-  assert.match(bg, /st\.ready && st\.webgpuOk !== false \? 'local' : 'cloud'/);
+  assert.match(bg, /handleAnalyze\(text, !!msg\.skipCache, false, sender\.tab\?\.id, msg\.cloudModel, waitUi\)/);
+  assert.match(bg, /fetchTokensForChoice/);
+  assert.match(readFileSync(join(dir, '../local/state.js'), 'utf8'), /ih_model_choice/);
   assert.match(bg, /if \(!forceCloud\) await maybeOfferInit\(\)/);
-  assert.match(bg, /if \(!prepare\) \{[\s\S]*?st\.pref !== IH_localState\.PREF_LOCAL\) return;/);
+  assert.match(bg, /if \(!prepare\) \{[\s\S]*?if \(!IH_localState\.choiceById\(st\.choice\)\.local\) return;/);
   assert.match(bg, /maybeOfferInit\(true\)/);
-  assert.match(bg, /if \(pref === IH_localState\.PREF_LOCAL\) \{[\s\S]*?probeAndStore\(\)/);
-  assert.match(bg, /await IH_localState\.set\(\{ pref \}\);[\s\S]*?if \(pref === IH_localState\.PREF_LOCAL\) await maybeOfferInit\(\)/);
+  assert.match(bg, /if \(choice\.local\) \{[\s\S]*?probeAndStore\(\)/);
+  assert.match(bg, /await IH_localState\.set\(\{ choice: choice\.id \}\);[\s\S]*?if \(choice\.local\) await maybeOfferInit\(\)/);
   const html = readFileSync(join(dir, '../options.html'), 'utf8');
   const optJs = readFileSync(join(dir, '../options.js'), 'utf8');
-  assert.match(html, /<option value="local" disabled data-i18n>/);
-  assert.match(optJs, /localOpt\.disabled = !webgpu/);
+  assert.match(optJs, /choice\.local && unavailable/);
+  assert.doesNotMatch(html, /<option value="local"/);
   const content = readFileSync(join(dir, '../content.js'), 'utf8');
-  assert.match(content, /function setEnabled\(on\)/);
+  assert.match(content, /function setEnabled\(on, why\)/);
   assert.match(content, /void runBatch\(gen \+= 1, false, false\)/);
-  assert.match(content, /setEnabled\(\!\(busy \|\| active\)\)/);
+  assert.match(content, /setEnabled\(\!\(busy \|\| active\), why\)/);
+  assert.match(content, /trigger = why \|\| 'other'/);
+  assert.match(content, /trigger = 'auto'/);
+  assert.match(content, /trigger = why \|\| 'rerun'/);
   const run = readFileSync(join(dir, '../analyzeRun.js'), 'utf8');
   assert.match(run, /if \(globalThis\.IH_OPTIONS_PAGE\) return;/);
   assert.match(run, /armCloudWait && !globalThis\.IH_OPTIONS_PAGE/);
+});
+
+test('升级时把最低可见度写成 30%，已有值也覆盖，不弹提示', () => {
+  const bg = readFileSync(join(dir, '../background.js'), 'utf8');
+  const hs = readFileSync(join(dir, '../highlightStyle.js'), 'utf8');
+  assert.match(hs, /const FADE_MIN_DEFAULT = 30;/);
+  assert.match(bg, /async function applyFadeMinDefault\(details\)/);
+  assert.match(bg, /void applyFadeMinDefault\(details\)/);
+  assert.match(bg, /ih_fade_min_force_30/);
+  assert.doesNotMatch(bg, /applyFadeMinDefault[\s\S]{0,800}pending/);
 });
 
 test('升级且没存过高亮形式时提醒一次，Settings 打开高亮一节', () => {
@@ -195,32 +231,55 @@ test('升级且没存过高亮形式时提醒一次，Settings 打开高亮一�
   assert.match(bg, /details\.reason === 'install'/);
   assert.match(bg, /details\.reason === 'update'/);
   assert.match(bg, /ih_fade_default_notice/);
-  assert.match(bg, /options\.html'\) \+ '#highlight'/);
+  assert.match(bg, /OPTIONS_PAGE_SECTIONS\.has\(raw\) \? raw : 'highlight'/);
   assert.match(pageMap, /The default style is now "Fade"\./);
   assert.match(pageMap, /textContent = tr\('OK'\)/);
   assert.match(pageMap, /textContent = tr\('Go to settings'\)/);
   assert.match(pageMap, /ih-open-highlight-options/);
-  assert.match(pageMap, /if \(!opts\?\.overlay && stats\.painted > 0\) maybeShowFadeDefaultNotice\(\)/);
+  assert.match(pageMap, /function maybeShowPaintNotices\(\) \{\s*maybeShowFadeDefaultNotice\(\);\s*maybeShowDynamicTrackNotice\(\);\s*maybeShowViewportDefaultNotice\(\);\s*\}/);
+  assert.match(readFileSync(join(dir, '../content.js'), 'utf8'), /session\?\.painted > 0\) globalThis\.IH_maybeShowPaintNotices\(\)/);
+});
+
+test('默认从视口开始：真正跳过内容时提醒一次，Settings 打开内容一节', () => {
+  const pageMap = readFileSync(join(dir, '../page-map.js'), 'utf8');
+  const zh = readFileSync(join(dir, '../zh.js'), 'utf8');
+  assert.match(pageMap, /ih_viewport_default_notice/);
+  assert.match(pageMap, /Content above the screen is skipped; only this screen and below is analyzed\. You can turn this off in settings\./);
+  assert.match(pageMap, /data-ih-viewport-notice/);
+  assert.match(pageMap, /openOptionsSection\('content'\)/);
+  assert.match(zh, /已跳过页面上方的内容，只分析当前屏幕及以下。/);
 });
 
 test('选项页 About 可以给作者留言', () => {
   const html = readFileSync(join(dir, '../options.html'), 'utf8');
   const optJs = readFileSync(join(dir, '../options.js'), 'utf8');
   const bg = readFileSync(join(dir, '../background.js'), 'utf8');
+  const aboutJs = readFileSync(join(sharedRoot, 'options-about.js'), 'utf8');
+  const authorNote = readFileSync(join(sharedRoot, 'sw/author-note.js'), 'utf8');
   assert.match(html, /<a href="#about" data-i18n>About<\/a>/);
   assert.ok(html.indexOf('id="settings-restore"') < html.indexOf('id="about"'));
-  assert.match(html, /<section id="about">/);
-  assert.match(html, /Info Highlight is part of <a class="about-home" href="https:\/\/info-lens\.app\/" target="_blank" rel="noopener noreferrer">Info Lens<\/a>, a toolbox for exploring the informational nature of LLMs and language\./);
-  assert.doesNotMatch(html, />Homepage</);
-  assert.match(html, /<details class="about-feedback" id="about_feedback">\s*<summary data-i18n>Feedback<\/summary>/);
-  assert.match(html, /We'd love to hear from you\. Please tell us anything you'd like\./);
-  assert.match(optJs, /Thank you\. Your feedback helps us improve\./);
-  assert.match(html, /https:\/\/info-lens\.app\//);
-  assert.match(html, /id="about_contact"/);
-  assert.match(html, /about-optional">optional</);
+  assert.match(html, /<section id="about"><\/section>/);
+  assert.match(html, /options-about\.css/);
+  assert.match(html, /options-about\.js/);
+  assert.match(optJs, /IL_optionsAbout\.mount/);
+  assert.match(optJs, /Info Highlight is part of <a class="about-home"/);
+  assert.match(optJs, /gemajnklkebeikmfphiddpjfimahacdk\/reviews/);
+  assert.match(aboutJs, /id="about_feedback"/);
+  assert.match(aboutJs, /class="row about-actions"/);
   assert.match(optJs, /type: 'ih-author-note'/);
   assert.match(bg, /msg\?\.type === 'ih-author-note'/);
-  const fn = bg.slice(bg.indexOf('async function postAuthorNote'), bg.indexOf('async function postLocalInitReport'));
-  assert.match(fn, /client_id/);
-  assert.doesNotMatch(fn, /page_url/);
+  assert.match(bg, /IL_postAuthorNote/);
+  assert.match(authorNote, /client_id/);
+  assert.doesNotMatch(authorNote, /page_url/);
+});
+
+test('视口提醒：每次真跳过都提醒，点 OK / 去设置才永久关', () => {
+  const src = readFileSync(join(dir, '../page-map.js'), 'utf8');
+  const fn = src.slice(src.indexOf('function maybeShowViewportDefaultNotice'), src.indexOf('function dismissViewportDefaultNotice'));
+  assert.match(fn, /if \(dynamicTrack \|\| viewportNoticeDismissed \|\| !fromViewport \|\| !\(lastViewportFrom > 0\)\) return;/);
+  assert.doesNotMatch(fn, /viewportNoticeDismissed = true;\s*chrome\.storage\.local\.get/);
+  const dismiss = src.slice(src.indexOf('function dismissViewportDefaultNotice'), src.indexOf('function dismissViewportDefaultNotice') + 300);
+  assert.match(dismiss, /viewportNoticeDismissed = true;\s*chrome\.storage\.local\.set\(\{ \[VIEWPORT_DEFAULT_NOTICE\]: 'seen' \}\)/);
+  const show = src.slice(src.indexOf('async function showViewportDefaultNotice'), src.indexOf('async function showViewportDefaultNotice') + 400);
+  assert.doesNotMatch(show, /viewportNotice\w* = true/);
 });

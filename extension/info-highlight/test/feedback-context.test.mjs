@@ -8,8 +8,16 @@ import { runInThisContext } from 'node:vm';
 const dir = dirname(fileURLToPath(import.meta.url));
 
 function loadFeedbackContext() {
-  globalThis.location = { href: 'https://example.com/article' };
-  globalThis.navigator = { userAgent: 'test-ua' };
+  Object.defineProperty(globalThis, 'location', {
+    value: { href: 'https://example.com/article' },
+    configurable: true,
+    writable: true,
+  });
+  Object.defineProperty(globalThis, 'navigator', {
+    value: { userAgent: 'test-ua' },
+    configurable: true,
+    writable: true,
+  });
   runInThisContext(readFileSync(join(dir, '../feedbackContext.js'), 'utf8'), {
     filename: 'feedbackContext.js',
   });

@@ -18,9 +18,22 @@
 
   let localOnly = false;
   let wantProgress = false;
+  const localOpt = document.getElementById('hub_local');
+  if (localOpt && globalThis.IH_localState.localHubEnabled()) {
+    localOpt.hidden = false;
+  }
+
   globalThis.IH_localState.get().then((st) => {
-    localOnly = st.pref === globalThis.IH_localState.PREF_LOCAL;
+    localOnly = globalThis.IH_localState.choiceById(st.choice).local;
     hubSel.value = globalThis.IH_localState.normalizeHub(st.hub);
+    const spec = globalThis.IH_localState.localSpec(
+      globalThis.IH_localState.onDeviceStatusModelId(st.choice, st.runtime),
+    );
+    leadEl.textContent = tr('This downloads about {size} ({model} {dtype}) and keeps it on this computer.', {
+      model: spec.label,
+      dtype: spec.dtype,
+      size: spec.initDownloadSize,
+    });
   });
 
   hubSel.addEventListener('change', () => {
@@ -148,7 +161,7 @@
       }
       setStatus(localOnly
         ? tr('On-device model is ready. You can close this window. Later toolbar clicks will analyze on this device only.')
-        : tr('On-device model is ready. You can close this window. Later toolbar clicks will prefer this device.'));
+        : tr('On-device model is ready. You can close this window.'));
       doneButtons();
     });
   });

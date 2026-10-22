@@ -16,7 +16,8 @@ function injectApiBaseMeta(html) {
     const raw = process.env.INFORADAR_API_BASE?.trim();
     if (!raw) return html;
     const content = escapeHtmlText(raw.replace(/\/+$/, ''));
-    if (html.includes(`name="${META_NAME}"`)) return html;
+    // 只认真实 <meta>，避免页内 JS 里 querySelector('meta[name=...]') 误判已注入
+    if (/<meta\s[^>]*\bname=["']inforadar-api-base["']/i.test(html)) return html;
     const tag = `<meta name="${META_NAME}" content="${content}">`;
     if (/<meta\s+charset/i.test(html)) {
         return html.replace(/(<meta\s+charset[^>]*>)/i, `$1\n    ${tag}`);

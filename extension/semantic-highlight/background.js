@@ -9,7 +9,9 @@ importScripts('sw/action-dot.js');
 importScripts('options-attention.js');
 importScripts('options-catalog.js');
 importScripts('sw/lifecycle-events.js');
+importScripts('open-about-feedback.js');
 importScripts('sw/client-id.js');
+importScripts('sw/author-note.js');
 importScripts('sw/inject.js');
 importScripts('config.js');
 importScripts('pdf/stash-db.js');
@@ -20,6 +22,12 @@ const EXTENSION_ID = 'semantic-highlight';
 const CONTENT_CSS = ['content.css'];
 const CONTENT_JS = [
   'config.js',
+  'options-about-zh.js',
+  'options-i18n.js',
+  'engagement-tr.js',
+  'engagement-nudge-key.js',
+  'engagement-nudge.js',
+  'engagement-nudge-ui.js',
   'vendor/Readability.js',
   'extractRootPatches.js',
   'articleRoot.js',
@@ -75,6 +83,23 @@ async function setBadgeError(tabId, brief) {
  * @param {chrome.tabs.Tab} tab
  * @param {{ query?: string }} [opts] query：右键选区预填，不自动搜
  */
+async function postEngagementNudgeReport(msg) {
+  const allowed = new Set(['later', 'feedback', 'review', 'dont_show_again']);
+  const action = typeof msg?.action === 'string' ? msg.action.trim() : '';
+  if (!allowed.has(action)) return;
+  const body = {
+    event: 'engagement_nudge',
+    extension: EXTENSION_ID,
+    version: chrome.runtime.getManifest().version,
+    action,
+    success_total: Math.max(0, Math.floor(Number(msg?.success_total) || 0)),
+    prompt_index: Math.max(0, Math.floor(Number(msg?.prompt_index) || 0)),
+  };
+  const client_id = await IL_getClientId().catch(() => null);
+  if (client_id) body.client_id = client_id;
+  IL_postKeepalive('/api/extension-usage', body);
+}
+
 async function activateTab(tab, opts = {}) {
   if (!tab?.id) return;
   // query：普通网页 / 自家 PDF viewer 预填浮条；Chrome PDF 宿主页只出入口按钮（无浮条）
@@ -198,7 +223,7 @@ function apiHttpError(message, detail) {
 
 /**
  * 读 API JSON 响应；要求 HTTP ok 且 body.success === true。
- * @returns {{ data: object, backend: string | null }}
+ * @returns {{ data: object }}
  */
 async function readJsonApi(res) {
   const raw = await res.text();
@@ -230,8 +255,7 @@ async function readJsonApi(res) {
         : undefined;
     throw apiHttpError(message, detail);
   }
-  const backend = res.headers.get('X-Infolens-Backend');
-  return { data, backend: backend || null };
+  return { data };
 }
 
 /**
@@ -369,6 +393,27 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  if (msg?.type === 'il-open-about-feedback') {
+    void (async () => {
+      await chrome.storage.session.set({ [globalThis.IL_OPEN_ABOUT_FEEDBACK_KEY]: true });
+      await chrome.tabs.create({ url: chrome.runtime.getURL('options.html') + '#about' });
+    })();
+    return;
+  }
+
+  if (msg?.type === 'il-open-store-review') {
+    const url = typeof msg.url === 'string' ? msg.url.trim() : '';
+    if (url.startsWith('https://chromewebstore.google.com/')) {
+      void chrome.tabs.create({ url });
+    }
+    return;
+  }
+
+  if (msg?.type === 'il-engagement-nudge-report') {
+    void postEngagementNudgeReport(msg);
+    return;
+  }
+
   if (msg?.type === 'il-analyze-semantic-version') {
     (async () => {
       try {
@@ -392,17 +437,24 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     (async () => {
       try {
         const path = msg.path || '/api/analyze-semantic';
-        const { data, backend } = await postJsonApi(
+        const { data } = await postJsonApi(
           `${IL_API_BASE}${path}`,
           msg.body
         );
-        sendResponse({ ok: true, data, backend });
+        sendResponse({ ok: true, data });
       } catch (err) {
         const payload = { ok: false, error: String(err?.message || err) };
         if (err?.errorDetail) payload.error_detail = String(err.errorDetail);
         sendResponse(payload);
       }
     })();
+    return true;
+  }
+
+  if (msg?.type === 'ih-author-note') {
+    IL_postAuthorNote(EXTENSION_ID, msg)
+      .then(() => sendResponse({ ok: true }))
+      .catch((err) => sendResponse({ ok: false, error: String(err?.message || err) }));
     return true;
   }
 

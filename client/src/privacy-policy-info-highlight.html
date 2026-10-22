@@ -43,41 +43,42 @@
 <body>
     <h1>Privacy Policy for Info Highlight</h1>
     <p><em>Last updated: September 2026</em></p>
+    <p>This extension and its backend are operated by Qingyun Dong, an individual developer (&ldquo;the author&rdquo;).</p>
 
-    <h2>Data We Process</h2>
+    <h2>Data processed</h2>
     <p>When you invoke the extension (toolbar icon or page context menu) on the webpage or PDF you are viewing, it reads the visible article/body text of that page. What happens next depends on how analysis is run:</p>
     <ul>
-        <li><strong>Cloud</strong> (default until an on-device model is ready): the extracted text is sent to our backend server at <code>api.info-lens.app</code>.</li>
+        <li><strong>Cloud</strong> (default until an on-device model is ready): the extracted text is sent to the backend server at <code>api.info-lens.app</code>.</li>
         <li><strong>On-device</strong> (after you agree on the setup page): the text stays on your computer. The extension downloads about 800&nbsp;MB of model weights from Hugging Face or ModelScope (you choose which) and keeps them locally.</li>
     </ul>
     <p>This happens only when you invoke the extension on the page you are viewing at that moment. The extension does not access any other tabs or pages.</p>
-    <p>Separately, and without page content: we use an anonymous client id (a random UUID). It is stored as a first-party cookie on <code>info-lens.app</code> (shared with our website and our other Info Lens extensions) and cached in the extension’s local storage. Installing, updating, uninstall events, optional survey answers, and analysis-run usage pings may include this id together with the extension id and version so we can estimate usage frequency and reconnect the same browser after reinstall. If you submit the uninstall survey, we receive the reasons and comment you typed. The id is not linked to your name, email, or Google account.</p>
-    <p>If you send a note from the options About section, we receive the message you typed, any contact you chose to include, the anonymous client id, and the extension version. That note does not include page text.</p>
-    <p>Separately, for paid cloud credits: we store the API key used for cloud access, credit/balance records linked to that key, and order/payment-status records needed for billing. Card and bank details are handled by third-party payment providers; we do not receive them.</p>
+    <p>Separately, and without page content: the author uses an anonymous client id (a random UUID). It is stored as a first-party cookie on <code>info-lens.app</code> (shared with the Info Lens website and other Info Lens extensions) and cached in the extension’s local storage. Installing, updating, uninstall events, optional survey answers, and analysis-run usage pings may include this id together with the extension id and version so the author can estimate usage frequency and reconnect the same browser after reinstall. Install and update events also report the browser UI language and system time zone for aggregate user-distribution statistics. If you submit the uninstall survey, the author receives the reasons and comment you typed. The id is not linked to your name, email, or Google account.</p>
+    <p>If you send a note from the options About section, the author receives the message you typed, any contact you chose to include, the anonymous client id, and the extension version. That note does not include page text.</p>
+    <p>Separately, for paid cloud credits: the author stores the API key used for cloud access, credit/balance records linked to that key, and order/payment-status records needed for billing. Card and bank details are handled by third-party payment providers; the author does not receive them.</p>
     <p>Also without page content: after each analysis run (up to 32 text segments, including when you cancel mid-run or the run fails), the extension sends a small usage ping—extension id, version, anonymous client id, whether analysis used on-device or cloud, outcome, how many segments were attempted / succeeded, and how many were served from the local analysis cache (no new inference). This ping never includes page text or the page URL.</p>
-    <p>We do not upload page content. To improve the product, after an analysis we may upload the site domain (a category for local and private-network pages, not the specific address), content size, how the text was split, whether analysis succeeded, how the run was started, and similar details. This does not include a user identifier, a URL path, or the page text.</p>
+    <p>The author does not upload page content. To improve the product, after an analysis the author may upload the site domain (a category for local and private-network pages, not the specific address), content size, how the text was split, whether analysis succeeded, how the run was started, and similar details. This does not include a user identifier, a URL path, or the page text.</p>
     <p>Also without page content: when an on-device model setup finishes (success, failure, or cancel), the extension may send a one-shot setup log—extension id, version, outcome, duration, download source (Hugging Face or ModelScope), and a short error string if it failed. No page text.</p>
 
-    <h2>How We Use It</h2>
-    <p>The page text is used solely to compute information-density scores and return a heatmap overlay on that page. On-device analysis does the same computation locally and does not send the page text to our server. Version events, optional survey answers, anonymous analysis-run counts (including the anonymous client id used only to operate and improve the product), on-device setup logs, and optional feedback notes are used only for that purpose. API keys, credits/balances, and order records are used for access control, metering, and billing. No other use is made of this data.</p>
+    <h2>How it is used</h2>
+    <p>The page text is used solely to compute information-density scores and return a heatmap overlay on that page. On-device analysis does the same computation locally and does not send the page text to the backend server. Version events, optional survey answers, anonymous analysis-run counts (including the anonymous client id used only to operate and improve the product), on-device setup logs, and optional feedback notes are used only for that purpose. API keys, credits/balances, and order records are used for access control, metering, and billing. No other use is made of this data.</p>
 
-    <h2>Data We Do Not Collect</h2>
-    <p>We do not ask you to create an account with a name or password, and we do not track your browsing history across pages or sessions. We do not collect card or bank details, or health information. If you type a contact into optional feedback, we store that text with the note.</p>
+    <h2>Data not collected</h2>
+    <p>The author does not ask you to create an account with a name or password, and does not track your browsing history across pages or sessions. The author does not collect card or bank details, or health information. If you type a contact into optional feedback, the author stores that text with the note.</p>
 
     <h2>Data Storage &amp; Retention</h2>
     <ul>
-        <li>Page text sent to our server is processed transiently to generate the heatmap and is not stored on our server after the response is returned.</li>
-        <li>Our server keeps a temporary, in-memory counter to distinguish visitor sessions for basic operational purposes (e.g., diagnosing issues). This counter is not written to disk, is not linked to any other data, and is cleared whenever the server restarts.</li>
-        <li>Optional uninstall-survey answers are stored so we can improve the product. Install/update/uninstall events and analysis-run usage pings may store the extension id, version, anonymous client id, and the counters described above (no page content). On-device setup logs store the fields described above (no page content). Optional feedback notes store the message, any contact you typed, the anonymous client id, and the extension version (no page content).</li>
-        <li>API keys, credit/balance records, and order/payment-status records are kept as needed to provide cloud access and billing (and to meet legal obligations). We do not store card or bank details.</li>
+        <li>Page text sent to the backend server is processed transiently to generate the heatmap and is not stored on the server after the response is returned.</li>
+        <li>The backend server keeps a temporary, in-memory counter to distinguish visitor sessions for basic operational purposes (e.g., diagnosing issues). This counter is not written to disk, is not linked to any other data, and is cleared whenever the server restarts.</li>
+        <li>Optional uninstall-survey answers are stored so the author can improve the product. Install/update/uninstall events and analysis-run usage pings may store the extension id, version, anonymous client id, and the counters described above (no page content). Install and update records may also store browser UI language and system time zone for aggregate user-distribution statistics. On-device setup logs store the fields described above (no page content). Optional feedback notes store the message, any contact you typed, the anonymous client id, and the extension version (no page content).</li>
+        <li>API keys, credit/balance records, and order/payment-status records are kept as needed to provide cloud access and billing (and to meet legal obligations). The author does not store card or bank details.</li>
         <li>Heatmap results, display preferences, and on-device model status are saved locally in your browser (via the extension's local storage). Model weights, if you download them, stay in the browser cache on your device. You can clear both from the extension's options page. Clearing site data for <code>info-lens.app</code> resets the anonymous client id cookie.</li>
     </ul>
 
     <h2>Third-Party Sharing</h2>
-    <p>We do not share, sell, or transfer page content to third parties. We do not use your data for advertising. Third-party payment providers process payments; they do not receive page text. If you agree to on-device analysis, the extension contacts Hugging Face or ModelScope only to download model weights; those services do not receive the page text.</p>
+    <p>The author does not share, sell, or transfer page content to third parties. The author does not use your data for advertising. Third-party payment providers process payments; they do not receive page text. If you agree to on-device analysis, the extension contacts Hugging Face or ModelScope only to download model weights; those services do not receive the page text.</p>
 
     <h2>Security</h2>
-    <p>All data sent to our server is transmitted over HTTPS.</p>
+    <p>All data sent to the backend server is transmitted over HTTPS.</p>
 
     <h2>Permissions</h2>
     <p>The extension requests the minimum permissions needed for its single purpose (highlighting informative words on the active page):</p>
@@ -87,10 +88,10 @@
         <li><strong>offscreen</strong>: to run the on-device model when you have enabled it</li>
         <li><strong>contextMenus</strong>: so you can invoke the same highlight from the page's right-click menu</li>
     </ul>
-    <p>Optional host access is requested only when needed: <code>file://</code> for local PDF files, and Hugging Face or ModelScope origins to download model weights after you agree. Cloud analysis does <strong>not</strong> use host permissions; page text is sent to our backend by the extension’s background service worker via a standard cross-origin HTTPS request. The page you are viewing never talks to our server directly.</p>
+    <p>Optional host access is requested only when needed: <code>file://</code> for local PDF files, and Hugging Face or ModelScope origins to download model weights after you agree. Cloud analysis does <strong>not</strong> use host permissions; page text is sent to the backend by the extension’s background service worker via a standard cross-origin HTTPS request. The page you are viewing never talks to the backend server directly.</p>
 
     <h2>Changes to This Policy</h2>
-    <p>If our data practices change, we will update this policy and the Chrome Web Store listing accordingly.</p>
+    <p>If the author&apos;s data practices change, the author will update this policy and the Chrome Web Store listing accordingly.</p>
 
     <h2>Contact</h2>
     <p>For questions about this policy, please contact <a href="mailto:xiaoyundqy@qq.com">xiaoyundqy@qq.com</a>.</p>

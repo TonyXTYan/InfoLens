@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Info Highlight · 动态跟踪验证页</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --fg: #1a1a1a;
+      --muted: #555;
+      --bg: #fafafa;
+      --panel: #fff;
+      --line: #ddd;
+      --accent: #1a73e8;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --fg: #e8e8e8;
+        --muted: #aaa;
+        --bg: #121212;
+        --panel: #1e1e1e;
+        --line: #444;
+        --accent: #8ab4f8;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 16px/1.6 Georgia, "Songti SC", serif;
+      color: var(--fg);
+      background: var(--bg);
+    }
+    .toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      font-family: system-ui, sans-serif;
+      font-size: 14px;
+      line-height: 1.4;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+      padding: 12px 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.06);
+    }
+    .toolbar h1 {
+      margin: 0 0 8px;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+    .toolbar p { margin: 0 0 10px; color: var(--muted); }
+    .toolbar ol {
+      margin: 0 0 12px;
+      padding-left: 1.2em;
+      color: var(--muted);
+    }
+    .toolbar li { margin: 4px 0; }
+    .btns {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    button {
+      font: inherit;
+      padding: 6px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      color: var(--fg);
+      cursor: pointer;
+    }
+    button:hover { border-color: var(--accent); color: var(--accent); }
+    button.danger { border-color: #c5221f; color: #c5221f; }
+    #tickState {
+      margin-top: 10px;
+      font-family: ui-monospace, monospace;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    main {
+      max-width: 42rem;
+      margin: 0 auto;
+      padding: 24px 20px 120vh;
+    }
+    article p { margin: 0 0 1.2em; }
+    article h2 {
+      font-family: system-ui, sans-serif;
+      font-size: 1.1rem;
+      margin: 2em 0 0.6em;
+    }
+    .dyn-num { font-variant-numeric: tabular-nums; }
+    .spacer-note {
+      font-family: system-ui, sans-serif;
+      font-size: 13px;
+      color: var(--muted);
+      margin: 3rem 0 1rem;
+      padding: 12px;
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <h1>动态跟踪验证（先对本页做一次完整分析）</h1>
+    <p>建议用 <code>python3 -m http.server 8765</code> 在本目录起服务，打开
+      <code>http://127.0.0.1:8765/dynamic-track-verify.html</code>；或在扩展里允许 file 后直接用文件路径打开。</p>
+    <ol>
+      <li><strong>段内小改</strong>：点「改访问量数字」或开「每秒改股价」——高亮应跟着变，<em>不应</em>整页重分析；悬停 token 提示应仍在。</li>
+      <li><strong>大改</strong>：点「整段替换」——该段应重新走分析（网络/进度可见）。</li>
+      <li><strong>视口补画</strong>：分析后滚到文末灰框再点「插入新段」——视口附近未画段应自动补上。</li>
+      <li><strong>空闲不跑 job</strong>：小改后若 Network 里没有新的分析请求、也没有多余用量上报，即符合预期。</li>
+    </ol>
+    <div class="btns">
+      <button type="button" id="btnVisit">改访问量数字</button>
+      <button type="button" id="btnTicker">每秒改股价：关</button>
+      <button type="button" id="btnEmoji">改 emoji 旁数字 🎉</button>
+      <button type="button" class="danger" id="btnRewrite">整段替换（大改）</button>
+      <button type="button" id="btnInsert">在文末插入新段</button>
+      <button type="button" id="btnReset">恢复原文</button>
+    </div>
+    <div id="tickState">就绪</div>
+  </div>
+
+  <main>
+    <article id="article">
+      <p>
+        信息雷达扩展会把长文切成多段，按视口附近逐段上色。动态跟踪会在 DOM 变动后重新对齐旧段边界，
+        只在需要时补画未完成的段。下面几段是专门给手动回归用的固定文案，请先完整分析一次再点工具栏按钮。
+      </p>
+      <p>
+        市场简报：上证指数收盘报 <span class="dyn-num" id="stock">3124.56</span> 点，较昨日波动在正常区间内。
+        分析师称流动性与政策预期仍是短期主线，读者宜结合一手数据而非标题情绪做判断。
+      </p>
+      <p id="visitPara">
+        运营看板显示，今日全站访问量已达 <span class="dyn-num" id="visit">1,234,567</span> 人次，
+        峰值出现在午后时段。该数字会由前端定时刷新，属于典型的段内小改动场景。
+      </p>
+      <p id="emojiPara">
+        活动页倒计时还剩 <span class="dyn-num" id="emojiCount">42</span> 分钟 🎉，名额有限。
+        若 emoji 与数字混排，偏移应按码点正确平移，避免高亮错位到相邻字符。
+      </p>
+      <p>
+        第三段 filler：热带雨林里的观测站记录湿度、降水和鸟鸣频谱。科学家把样方标在地图上，
+        季度复查时只更新表格里的几个数字，正文叙述往往不变。扩展应保留已分析 token 的相对位置，
+        而不是因为一两个字符变化就丢弃整段结果。再多一句：树冠层光照随云影移动，地面腐殖质仍保持缓慢分解。
+      </p>
+      <p>
+        第四段 filler：城市自行车道在晚高峰承载通勤与休闲两种节奏。红绿灯周期、行人横穿、
+        外卖骑手变道都会改变路口的瞬时风险。规划者用摄像头和线圈计数车流，报表里只有占比和均值在变。
+        读者如果关心安全，应看分时段曲线而不是单日头条。雨后天晴时路面反光会拉长制动距离。
+      </p>
+      <p>
+        第五段 filler：图书馆数字化项目扫描泛黄期刊，OCR 校对员修正错字但不改版面结构。
+        某页脚注里的年份从一九九八改为二〇〇一，属于小范围修订；若整页换了一篇书评，则必须重新标引。
+        这类差异与人类编辑习惯一致，也是动态跟踪里「小改保留、大改重算」的直观对照。
+      </p>
+
+      <div class="spacer-note" id="foldMarker">
+        ↓ 视口补画测试区：先分析并滚到这里，再点「在文末插入新段」。上方段落应已高亮，新插入段在视口内时应触发补画。
+      </div>
+
+      <div id="tailSlot"></div>
+    </article>
+  </main>
+
+  <script>
+    (function () {
+      const $ = (id) => document.getElementById(id);
+      const state = { ticker: null, visit: 1234567, stock: 3124.56, emoji: 42 };
+
+      const ORIG = {
+        visit: $('visit').textContent,
+        stock: $('stock').textContent,
+        emoji: $('emojiCount').textContent,
+        visitPara: $('visitPara').innerHTML,
+        stockParent: $('stock').parentElement.innerHTML,
+      };
+
+      function setStatus(msg) {
+        $('tickState').textContent = new Date().toLocaleTimeString() + ' — ' + msg;
+      }
+
+      function fmtVisit(n) {
+        return n.toLocaleString('en-US');
+      }
+
+      function fmtStock(n) {
+        return n.toFixed(2);
+      }
+
+      $('btnVisit').addEventListener('click', () => {
+        state.visit += Math.floor(Math.random() * 9000) + 1000;
+        $('visit').textContent = fmtVisit(state.visit);
+        setStatus('访问量数字 in-place 更新（段内小改）');
+      });
+
+      $('btnTicker').addEventListener('click', (e) => {
+        const btn = e.currentTarget;
+        if (state.ticker) {
+          clearInterval(state.ticker);
+          state.ticker = null;
+          btn.textContent = '每秒改股价：关';
+          setStatus('股价自动刷新已停止');
+          return;
+        }
+        btn.textContent = '每秒改股价：开';
+        state.ticker = setInterval(() => {
+          state.stock += (Math.random() - 0.5) * 2.5;
+          $('stock').textContent = fmtStock(state.stock);
+        }, 1000);
+        setStatus('股价每秒 in-place 更新（段内小改）');
+      });
+
+      $('btnEmoji').addEventListener('click', () => {
+        state.emoji = Math.max(0, state.emoji - 1);
+        $('emojiCount').textContent = String(state.emoji);
+        setStatus('emoji 段内数字 -1（码点偏移）');
+      });
+
+      $('btnRewrite').addEventListener('click', () => {
+        $('visitPara').textContent =
+          '【整段已替换】这里不再是访问量文案，而是一段全新叙述，用于触发段级重分析。'
+          + '如果动态跟踪判断为结构变化，应重新请求该段分析结果。';
+        setStatus('访问量段整段替换（大改，应重分析）');
+      });
+
+      $('btnInsert').addEventListener('click', () => {
+        const slot = $('tailSlot');
+        if (slot.querySelector('[data-inserted]')) {
+          setStatus('文末段已存在，未重复插入');
+          return;
+        }
+        const p = document.createElement('p');
+        p.dataset.inserted = '1';
+        p.textContent =
+          '【新插入段】滚动到此可见时，动态跟踪应为视口附近未画段发起补画。'
+          + '本段文字足够长以便切分：清晨码头装卸集装箱，海雾把起重机轮廓抹成灰色；'
+          + '报关单上的提单号每小时都有几条更新，但段落主题不变。';
+        slot.appendChild(p);
+        p.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        setStatus('已在文末插入新 <p>（DOM 插入 + 视口补画）');
+      });
+
+      $('btnReset').addEventListener('click', () => {
+        if (state.ticker) {
+          clearInterval(state.ticker);
+          state.ticker = null;
+          $('btnTicker').textContent = '每秒改股价：关';
+        }
+        state.visit = 1234567;
+        state.stock = 3124.56;
+        state.emoji = 42;
+        $('visitPara').innerHTML = ORIG.visitPara;
+        $('stock').textContent = ORIG.stock;
+        $('emojiCount').textContent = ORIG.emoji;
+        $('tailSlot').innerHTML = '';
+        setStatus('已恢复原文（可重新分析基线）');
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -1,16 +1,28 @@
 {
-  "navPageKeys": ["causalFlow", "infoHighlight", "semanticHighlight"],
+  "siteOrigin": "https://info-lens.app",
+  "chromeWebStoreUrl": "https://chromewebstore.google.com/detail/info-highlight/gemajnklkebeikmfphiddpjfimahacdk",
+  "navPageKeys": [
+    "causalFlow",
+    "infoHighlight",
+    "semanticHighlight"
+  ],
   "pages": {
     "home": {
       "title": "Info Lens",
       "subtitle": "A toolbox for exploring the informational nature of LLMs and language",
       "heartline": "A ❤️ would mean a lot!",
-      "formula": "LLM × Linguistics × Information Theory"
+      "formula": "LLM × Linguistics × Information Theory",
+      "canonicalPath": "/",
+      "description": "Info Lens is a toolbox for exploring the informational nature of LLMs and language. LLM Causal Flow - explore the context-attribution DAG, Info Highlight - highlight the 'informative' parts, Semantic Highlight - search and highlight words by meaning",
+      "jsonLd": "website"
     },
     "infoHighlight": {
       "title": "Info Highlight",
       "subtitle": "- highlight the 'informative' parts",
-      "href": "analysis.html"
+      "href": "analysis.html",
+      "canonicalPath": "/analysis",
+      "description": "Info Highlight heatmaps per-token surprisal (bits) so you linger on informative words and skim predictable ones. Works on pages and PDFs. Local WebGPU analysis is free.",
+      "jsonLd": "software"
     },
     "semanticHighlight": {
       "title": "Semantic Highlight",
@@ -21,17 +33,71 @@
     "chat": {
       "title": "LLM Raw Chat",
       "subtitle": "- chat with explicit raw prompts",
-      "href": "chat.html"
+      "href": "chat.html",
+      "canonicalPath": "/chat",
+      "description": "LLM Raw Chat is an Info Lens tool for talking to a language model with explicit raw prompts, system text, and teacher forcing."
     },
     "attribution": {
       "title": "Context Attribution",
       "subtitle": "- attribute a predicted token to its context",
-      "href": "attribution.html"
+      "href": "attribution.html",
+      "canonicalPath": "/attribution",
+      "description": "Context Attribution shows which context tokens a language model uses when predicting a target token. An Info Lens toolbox page."
     },
     "causalFlow": {
       "title": "LLM Causal Flow",
       "subtitle": "- explore the context-attribution DAG",
-      "href": "causal_flow.html"
+      "href": "causal_flow.html",
+      "canonicalPath": "/causal_flow",
+      "description": "LLM Causal Flow draws a DAG of how a language model attributes a predicted token to its context. Explore information flow in generated text on Info Lens."
+    }
+  },
+  "staticPages": {
+    "info-highlight.html": {
+      "canonicalPath": "/info-highlight",
+      "description": "Info Highlight heatmaps per-token surprisal (bits) so you linger on informative words and skim predictable ones. Works on pages and PDFs. Local WebGPU analysis is free.",
+      "descriptionZh": "Info Highlight 用语言模型计算每个词的信息量（比特）并画成热力图，便于细读信息量大的词、略读可预测的部分。支持网页和 PDF。本机 WebGPU 分析免费。",
+      "jsonLd": "software",
+      "hreflang": true
+    },
+    "info-highlight-terms.html": {
+      "canonicalPath": "/info-highlight-terms",
+      "description": "Terms of service for the Info Highlight Chrome extension and optional cloud analysis credits.",
+      "descriptionZh": "Info Highlight Chrome 扩展与可选云端分析额度的服务条款。",
+      "hreflang": true
+    },
+    "info-highlight-privacy.html": {
+      "canonicalPath": "/info-highlight-privacy",
+      "description": "Privacy policy for the Info Highlight Chrome extension: on-device analysis, cloud analysis, credits, and anonymous usage stats.",
+      "descriptionZh": "Info Highlight Chrome 扩展的隐私政策：本机分析、云端分析、额度与匿名使用统计。",
+      "hreflang": true
+    },
+    "compare.html": {
+      "canonicalPath": "/compare",
+      "description": "Compare two Info Highlight analyses side by side. Part of the Info Lens toolbox."
+    },
+    "privacy-policy.html": {
+      "canonicalPath": "/privacy-policy",
+      "description": "Privacy policy for the Semantic Highlight Chrome extension on Info Lens."
+    },
+    "privacy-policy-info-highlight.html": {
+      "canonicalPath": "/privacy-policy-info-highlight",
+      "description": "Privacy policy for the Info Highlight Chrome extension and its cloud analysis service."
+    },
+    "info-highlight-preview.html": {
+      "canonicalPath": "/info-highlight-preview",
+      "description": "Editable sample page for trying Info Highlight on your own text.",
+      "robots": "noindex"
+    },
+    "uninstall.html": {
+      "canonicalPath": "/uninstall",
+      "robots": "noindex"
+    },
+    "library.html": {
+      "canonicalPath": "/library",
+      "description": "Highlighted articles saved with Save to phone on the desktop extension—read them here. Clear finished reads regularly.",
+      "descriptionZh": "用电脑插件“收藏到手机”存下的高亮文章，在这里打开看。请及时清空已读。",
+      "robots": "noindex"
     }
   }
 }

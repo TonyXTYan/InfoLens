@@ -5,7 +5,7 @@ const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin');
 const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 const { expandHtmlIncludes } = require('./scripts/includeHtmlPartials.js');
-const { injectPageMeta } = require('./scripts/injectPageMetaIntoHtml.js');
+const { injectPageMeta, injectSeoHead } = require('./scripts/injectPageMetaIntoHtml.js');
 const { injectApiBaseMeta } = require('./scripts/injectApiBaseMeta.js');
 const { GenAttributeDemoManifestPlugin } = require('./scripts/genAttributeDemoManifestPlugin.js');
 
@@ -18,16 +18,6 @@ const PAGE_META_DOC = JSON.parse(
 );
 const BUILD_TIME = new Date().toISOString();
 
-function copyHtmlWithIncludes(file) {
-    return {
-        from: file,
-        to: file,
-        transform(content) {
-            return expandHtmlIncludes(content.toString('utf8'), SRC_ROOT);
-        },
-    };
-}
-
 function copyHtmlWithIncludesAndPageMeta(from, to, pageKey) {
     return {
         from,
@@ -35,6 +25,23 @@ function copyHtmlWithIncludesAndPageMeta(from, to, pageKey) {
         transform(content) {
             const expanded = expandHtmlIncludes(content.toString('utf8'), SRC_ROOT);
             let html = injectPageMeta(expanded, pageKey, PAGE_META_DOC);
+            html = injectApiBaseMeta(html);
+            return html;
+        },
+    };
+}
+
+function copyHtmlWithIncludesAndStaticSeo(file) {
+    const seoMeta = PAGE_META_DOC.staticPages && PAGE_META_DOC.staticPages[file];
+    if (!seoMeta) {
+        throw new Error(`webpack: missing staticPages SEO meta for ${file}`);
+    }
+    return {
+        from: file,
+        to: file,
+        transform(content) {
+            const expanded = expandHtmlIncludes(content.toString('utf8'), SRC_ROOT);
+            let html = injectSeoHead(expanded, seoMeta, PAGE_META_DOC);
             html = injectApiBaseMeta(html);
             return html;
         },
@@ -179,22 +186,22 @@ module.exports = {
                 // so we only need to copy the HTML shell into the dist folder.
                 copyHtmlWithIncludesAndPageMeta('index.html', 'index.html', 'home'),
                 copyHtmlWithIncludesAndPageMeta('analysis.html', 'analysis.html', 'infoHighlight'),
-                { from: 'compare.html', to: 'compare.html' },
+                copyHtmlWithIncludesAndStaticSeo('compare.html'),
                 copyHtmlWithIncludesAndPageMeta('chat.html', 'chat.html', 'chat'),
                 copyHtmlWithIncludesAndPageMeta('attribution.html', 'attribution.html', 'attribution'),
                 copyHtmlWithIncludesAndPageMeta('causal_flow.html', 'causal_flow.html', 'causalFlow'),
-                { from: 'privacy-policy.html', to: 'privacy-policy.html' },
-                { from: 'privacy-policy-info-highlight.html', to: 'privacy-policy-info-highlight.html' },
-                copyHtmlWithIncludes('info-highlight.html'),
-                copyHtmlWithIncludes('info-highlight-terms.html'),
-                copyHtmlWithIncludes('info-highlight-privacy.html'),
-                {
-                    from: 'uninstall.html',
-                    to: 'uninstall.html',
-                    transform(content) {
-                        return injectApiBaseMeta(content.toString('utf8'));
-                    },
-                },
+                copyHtmlWithIncludesAndStaticSeo('privacy-policy.html'),
+                copyHtmlWithIncludesAndStaticSeo('privacy-policy-info-highlight.html'),
+                copyHtmlWithIncludesAndStaticSeo('info-highlight.html'),
+                copyHtmlWithIncludesAndStaticSeo('info-highlight-terms.html'),
+                copyHtmlWithIncludesAndStaticSeo('info-highlight-privacy.html'),
+                copyHtmlWithIncludesAndStaticSeo('info-highlight-preview.html'),
+                copyHtmlWithIncludesAndStaticSeo('uninstall.html'),
+                copyHtmlWithIncludesAndStaticSeo('library.html'),
+                { from: '_routes.json', to: '_routes.json' },
+                { from: 'robots.txt', to: 'robots.txt' },
+                { from: 'sitemap.xml', to: 'sitemap.xml' },
+                { from: '404.html', to: '404.html' },
             ]
         }),
         new GenAttributeDemoManifestPlugin(),

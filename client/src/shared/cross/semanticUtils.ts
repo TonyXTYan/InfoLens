@@ -196,14 +196,20 @@ export function mergeTokenSpansFullyForRendering<T extends { offset: [number, nu
     return mergeTokenDigitSpans(overlapped, text);
 }
 
+/**
+ * 网页抽取可能带 CR；站内输入框已把换行归一成 LF。逐字 `\r`→`\n`（不把 `\r\n` 收成单个 `\n`，以免偏移错位）。
+ * `\r\n` 会变成 `\n\n`，段落切分可能更碎——比抛错可接受。
+ */
+function normalizeCrToLf(text: string): string {
+    return text.includes("\r") ? text.replace(/\r/g, "\n") : text;
+}
+
 /** bytesPerChunk：UTF-8 字节数；startOffset：UTF-16 码元下标（非码点；拼到 API offset 前须转码点）。扩展侧副本：`extension/shared/page/splitTextToChunks.js`（改此处请同步）。 */
 export function splitTextToChunks(text: string, bytesPerChunk: number): Array<{ text: string; startOffset: number }> {
     if (bytesPerChunk <= 0) {
         throw new Error("bytesPerChunk must be > 0, got: " + bytesPerChunk);
     }
-    if (text.includes("\r")) {
-        throw new Error("Text contains \\r (CR); only \\n (LF) is supported.");
-    }
+    text = normalizeCrToLf(text);
     const chunks: Array<{ text: string; startOffset: number }> = [];
     let pos = 0; // 字符索引
     const encodeBuf = new Uint8Array(bytesPerChunk + 1); // +1 使超长行 written>bytesPerChunk，wouldExceed 恒为 true

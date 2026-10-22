@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
+const API_BASE_SRC = readFileSync(`${ROOT}shared/api-base.js`, 'utf8');
 const SRC = readFileSync(`${ROOT}shared/sw/client-id.js`, 'utf8');
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -20,6 +21,7 @@ function plugins() {
 
 function load({ store = {}, fetchImpl } = {}) {
   const sandbox = {
+    URL,
     chrome: {
       runtime: { lastError: undefined },
       storage: {
@@ -36,6 +38,7 @@ function load({ store = {}, fetchImpl } = {}) {
         },
       },
     },
+    btoa: (s) => Buffer.from(s, 'binary').toString('base64'),
     crypto: {
       randomUUID: () => 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
       getRandomValues: (buf) => {
@@ -50,8 +53,9 @@ function load({ store = {}, fetchImpl } = {}) {
         json: async () => ({ success: true, client_id: '11111111-2222-4333-8444-555555555555' }),
       })),
   };
-  sandbox.globalThis = sandbox;
-  vm.runInContext(SRC, vm.createContext(sandbox));
+  const ctx = vm.createContext(sandbox);
+  vm.runInContext(API_BASE_SRC, ctx);
+  vm.runInContext(SRC, ctx);
   return { sandbox, store };
 }
 
@@ -111,4 +115,78 @@ test('无缓存时带 Cookie GET 门面', async () => {
   assert.equal(calls[0].url, 'https://api.info-lens.app/api/client-id');
   assert.equal(calls[0].method, 'GET');
   assert.equal(calls[0].credentials, 'include');
+});
+
+test('取 client_id 不生成 API key；首次 IL_getApiKey 才生成 ih_ 前缀的 base64url', async () => {
+  const { sandbox, store } = load();
+  const id = await sandbox.IL_getClientId();
+  assert.equal(store.ih_api_key, undefined);
+  const key = await sandbox.IL_getApiKey();
+  const bytes = Buffer.alloc(32);
+  for (let i = 0; i < 32; i++) bytes[i] = (i * 17) & 0xff;
+  assert.equal(id, '11111111-2222-4333-8444-555555555555');
+  assert.equal(key, `ih_${bytes.toString('base64url')}`);
+  assert.equal(key.length, 46);
+  assert.equal(store.ih_api_key, key);
+  assert.equal(await sandbox.IL_getApiKey(), key);
+});
+
+test('已有 API key 时不重造', async () => {
+  const key = `ih_${'A'.repeat(43)}`;
+  let randoms = 0;
+  const { sandbox, store } = load({
+    store: {
+      il_client_id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+      ih_api_key: key,
+    },
+  });
+  const orig = sandbox.crypto.getRandomValues;
+  sandbox.crypto.getRandomValues = (buf) => {
+    randoms += 1;
+    return orig(buf);
+  };
+  assert.equal(await sandbox.IL_getApiKey(), key);
+  assert.equal(store.ih_api_key, key);
+  assert.equal(randoms, 0);
+});
+
+test('坏的 API key 直接报错，不另造一把', async () => {
+  const { sandbox, store } = load({ store: { ih_api_key: 'nope' } });
+  await assert.rejects(() => sandbox.IL_getApiKey(), /stored api key is invalid/);
+  assert.equal(store.ih_api_key, 'nope');
+  assert.equal(await sandbox.IL_getClientId(), '11111111-2222-4333-8444-555555555555');
+});
+
+test('IL_replaceApiKey：校验格式并写入本地', async () => {
+  const oldKey = `ih_${'A'.repeat(43)}`;
+  const newKey = `ih_${'B'.repeat(43)}`;
+  const { sandbox, store } = load({
+    store: {
+      il_client_id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+      ih_api_key: oldKey,
+    },
+  });
+  await sandbox.IL_getApiKey();
+  await sandbox.IL_replaceApiKey(newKey);
+  assert.equal(store.ih_api_key, newKey);
+  assert.equal(await sandbox.IL_getApiKey(), newKey);
+  await assert.rejects(() => sandbox.IL_replaceApiKey('bad'), /invalid api key/);
+  assert.equal(store.ih_api_key, newKey);
+});
+
+test('IL_replaceApiKey：记下被换掉的那一把', async () => {
+  const a = `ih_${'A'.repeat(43)}`;
+  const b = `ih_${'B'.repeat(43)}`;
+  const { sandbox, store } = load({
+    store: {
+      il_client_id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+      ih_api_key: a,
+    },
+  });
+  await sandbox.IL_replaceApiKey(b);
+  assert.equal(store.ih_api_key, b);
+  assert.equal(store.ih_api_key_prev, a);
+  await sandbox.IL_replaceApiKey(a);
+  assert.equal(store.ih_api_key, a);
+  assert.equal(store.ih_api_key_prev, b);
 });

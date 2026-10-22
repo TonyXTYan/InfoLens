@@ -585,3 +585,20 @@ test('syncRemoteModel：fetch 失败不改 key，下次仍问', async () => {
   });
   assert.equal(n, 1);
 });
+
+test('无 crypto.subtle 时仍能算缓存 key（http 页 content script）', async () => {
+  mockLocal();
+  const subtle = globalThis.crypto.subtle;
+  Object.defineProperty(globalThis.crypto, 'subtle', { value: undefined, configurable: true });
+  try {
+    const k = await cache.key('q', 'block');
+    assert.match(k, /\/[0-9a-f]{32}$/);
+    let sent = 0;
+    await cache.relevance('q', ['block'], () => {}, undefined, async () => {
+      sent += 1;
+    });
+    assert.equal(sent, 1);
+  } finally {
+    Object.defineProperty(globalThis.crypto, 'subtle', { value: subtle, configurable: true });
+  }
+});

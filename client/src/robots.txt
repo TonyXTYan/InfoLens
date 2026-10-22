@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+
+# Extension uninstall survey; not a public landing page
+Disallow: /uninstall
+
+Sitemap: https://info-lens.app/sitemap.xml

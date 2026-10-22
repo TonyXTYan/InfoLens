@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <url>
+    <loc>https://info-lens.app/</loc>
+  </url>
+  <url>
+    <loc>https://info-lens.app/analysis</loc>
+  </url>
+  <url>
+    <loc>https://info-lens.app/info-highlight</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://info-lens.app/info-highlight?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://info-lens.app/info-highlight?lang=zh"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://info-lens.app/info-highlight"/>
+  </url>
+  <url>
+    <loc>https://info-lens.app/info-highlight?lang=en</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://info-lens.app/info-highlight?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://info-lens.app/info-highlight?lang=zh"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://info-lens.app/info-highlight"/>
+  </url>
+  <url>
+    <loc>https://info-lens.app/info-highlight?lang=zh</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://info-lens.app/info-highlight?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://info-lens.app/info-highlight?lang=zh"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://info-lens.app/info-highlight"/>
+  </url>
+  <url>
+    <loc>https://info-lens.app/info-highlight-terms</loc>
+  </url>
+  <url>
+    <loc>https://info-lens.app/info-highlight-privacy</loc>
+  </url>
+  <url>
+    <loc>https://info-lens.app/causal_flow</loc>
+  </url>
+  <url>
+    <loc>https://info-lens.app/chat</loc>
+  </url>
+  <url>
+    <loc>https://info-lens.app/attribution</loc>
+  </url>
+  <url>
+    <loc>https://info-lens.app/compare</loc>
+  </url>
+  <url>
+    <loc>https://info-lens.app/privacy-policy</loc>
+  </url>
+</urlset>

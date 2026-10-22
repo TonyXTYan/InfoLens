@@ -10,6 +10,7 @@ import { runInThisContext } from 'node:vm';
 
 const dir = dirname(fileURLToPath(import.meta.url));
 runInThisContext(readFileSync(join(dir, '../zh.js'), 'utf8'), { filename: 'zh.js' });
+runInThisContext(readFileSync(join(dir, '../../shared/options-i18n.js'), 'utf8'), { filename: 'options-i18n.js' });
 runInThisContext(readFileSync(join(dir, '../i18n.js'), 'utf8'), { filename: 'i18n.js' });
 runInThisContext(readFileSync(join(dir, '../highlightStyle.js'), 'utf8'), {
   filename: 'highlightStyle.js',
@@ -78,6 +79,10 @@ test('缺键用默认，存过的 false 留着', () => {
   assert.equal(globalThis.IH_optionStored('show_token_tip', false), false);
   assert.equal(globalThis.IH_optionStored('ih_article_only', undefined), false);
   assert.equal(globalThis.IH_optionStored('ih_article_only', true), true);
+  assert.equal(globalThis.IH_optionStored('ih_from_viewport', undefined), true);
+  assert.equal(globalThis.IH_optionStored('ih_from_viewport', false), false);
+  assert.equal(globalThis.IH_optionStored('ih_dynamic_track', undefined), true);
+  assert.equal(globalThis.IH_optionStored('ih_dynamic_track', false), false);
 });
 
 test('normalizePrefs 填默认', () => {
@@ -85,8 +90,9 @@ test('normalizePrefs 填默认', () => {
   assert.equal(p.twoTier, false);
   assert.equal(p.thresholdPct, 25);
   assert.equal(p.maxAlphaDepth, 100);
+  assert.equal(HS.FADE_MIN_DEFAULT, 30);
   assert.equal(p.fadeMinPct, HS.FADE_MIN_DEFAULT);
-  assert.equal(p.fadeNorm, false);
+  assert.equal(p.fadeNorm, true);
   assert.equal(p.fadeNormPct, 10);
   assert.equal(p.paintStyle, HS.PAINT_FADE);
   assert.equal(p.highlightColor, HS.HUE_RED);
@@ -217,7 +223,6 @@ test('applyCssVars：下划线透明底、block 写底色、text 写字色；100
   assert.equal(props['--ih-paint-deco'], 'underline');
   assert.equal(props['--ih-token-bg-8'], 'transparent');
   assert.equal(props['--ih-token-8'], `rgba(${HS.rgbForHue(HS.HUE_RED)}, 0.5)`);
-  assert.equal(props['--ih-token-pct-8'], undefined);
   HS.applyCssVars(root, { twoTier: false, maxAlphaDepth: 100, paintStyle: 'block' });
   assert.equal(props['--ih-paint-deco'], 'none');
   assert.equal(props['--ih-token-bg-8'], props['--ih-token-8']);
@@ -232,15 +237,12 @@ test('applyCssVars：下划线透明底、block 写底色、text 写字色；100
   assert.equal(props['--ih-paint-deco'], 'none');
   assert.equal(props['--ih-token-bg-8'], 'transparent');
   assert.equal(props['--ih-highlight-rgb'], HS.rgbForTextColor('red'));
-  assert.equal(props['--ih-token-pct-8'], '50%');
-  assert.equal(props['--ih-token-pct-15'], `${15 / 16 * 100}%`);
   HS.applyCssVars(root, { twoTier: false, maxAlphaDepth: 100, paintStyle: 'text', textColor: 'blue' });
   assert.equal(props['--ih-highlight-rgb'], HS.rgbForTextColor('blue'));
   HS.applyCssVars(root, { twoTier: false, maxAlphaDepth: 100, paintStyle: 'block' });
-  assert.equal(props['--ih-token-pct-8'], undefined);
 });
 
-test('applyCssVars：淡去写 --ih-fade-pct-*，底色透明，不写字色变量', () => {
+test('applyCssVars：淡去底色透明', () => {
   const props = {};
   const root = {
     style: {
@@ -251,11 +253,57 @@ test('applyCssVars：淡去写 --ih-fade-pct-*，底色透明，不写字色变�
   HS.applyCssVars(root, { twoTier: false, maxAlphaDepth: 100, fadeMinPct: 30, paintStyle: 'fade' });
   assert.equal(props['--ih-paint-deco'], 'none');
   assert.equal(props['--ih-token-bg-8'], 'transparent');
-  assert.equal(props['--ih-token-pct-8'], undefined);
-  assert.equal(props['--ih-fade-pct-15'], '100%');
-  assert.equal(props['--ih-fade-pct-0'], '30%');
   HS.applyCssVars(root, { twoTier: false, maxAlphaDepth: 100, paintStyle: 'block' });
-  assert.equal(props['--ih-fade-pct-0'], undefined);
+});
+
+test('libraryMarkCss：淡去混 currentColor，色块用用户色，不写死当时 RGB', () => {
+  const fade = HS.libraryMarkCss({
+    paintStyle: 'fade',
+    fadeMinPct: 30,
+    twoTier: false,
+    maxAlphaDepth: 100,
+    highlightColor: HS.HUE_RED,
+    textColor: 'red',
+  });
+  assert.match(fade, /mark\[class\^="ih-token-"\]\{background:transparent;color:inherit\}/);
+  assert.match(fade, /mark\.ih-token-0\{color:color-mix\(in srgb,currentColor 30\.00%,transparent\)\}/);
+  assert.match(fade, /mark\.ih-token-15\{color:color-mix\(in srgb,currentColor 100\.00%,transparent\)\}/);
+  assert.equal(fade.includes('background:rgba'), false);
+
+  const block = HS.libraryMarkCss({
+    paintStyle: 'block',
+    fadeMinPct: 30,
+    twoTier: false,
+    maxAlphaDepth: 100,
+    highlightColor: 240,
+    textColor: 'red',
+  });
+  const blue = HS.rgbForHue(240);
+  assert.match(block, new RegExp(`mark\\.ih-token-8\\{background:rgba\\(${blue},`));
+  assert.equal(block.includes('currentColor'), false);
+  assert.equal(block.includes(HS.rgbForHue(HS.HUE_RED)), false);
+
+  const text = HS.libraryMarkCss({
+    paintStyle: 'text',
+    fadeMinPct: 30,
+    twoTier: false,
+    maxAlphaDepth: 50,
+    highlightColor: HS.HUE_RED,
+    textColor: 'green',
+  });
+  assert.match(text, new RegExp(`color-mix\\(in srgb-linear,rgb\\(${HS.rgbForTextColor('green')}\\)`));
+  assert.match(text, /%,currentColor\)/);
+
+  const two = HS.libraryMarkCss({
+    paintStyle: 'block',
+    fadeMinPct: 30,
+    twoTier: true,
+    maxAlphaDepth: 100,
+    highlightColor: HS.HUE_RED,
+    textColor: 'red',
+  });
+  assert.equal(two.includes('mark.ih-token-8{'), false);
+  assert.match(two, /mark\.ih-token-15\{background:rgba/);
 });
 
 test('underlineOverlayBox：16px 字盒 = 2px 粗、再上移 1px', () => {

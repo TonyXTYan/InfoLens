@@ -6,6 +6,10 @@
     "test": "node --test test/*.test.mjs ../test/*.test.mjs"
   },
   "dependencies": {
-    "@huggingface/transformers": "3.8.1"
+    "@huggingface/transformers": "3.8.1",
+    "onnxruntime-web": "1.23.2"
+  },
+  "overrides": {
+    "onnxruntime-web": "1.23.2"
   }
 }

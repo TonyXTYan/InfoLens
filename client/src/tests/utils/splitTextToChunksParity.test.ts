@@ -60,9 +60,13 @@ test("bytesPerChunk ≤ 0 两边都抛", () => {
         assert.throws(() => extensionCopy("hello", limit), /bytesPerChunk must be > 0/);
     }
 });
-test("文本含 \\r 两边都抛", () => {
-    assert.throws(() => splitTextToChunks("a\r\nb", 512), /\\r/);
-    assert.throws(() => extensionCopy("a\r\nb", 512), /\\r/);
+test("文本含 CR / CRLF 两边都切且结果一致（等长归一，不抛）", () => {
+    for (const text of ["a\rb", "a\r\nb", "hello\r\nworld\rlone"]) {
+        expectSame(text, 512);
+        const chunks = splitTextToChunks(text, 512);
+        assert.strictEqual(chunks.map((c) => c.text).join("").length, text.length);
+        assert.ok(!chunks.some((c) => c.text.includes("\r")));
+    }
 });
 test("limit 装不下单个字符时两边都抛（而非空 chunk 死循环）", () => {
     for (const [text, limit] of [["你", 2], ["😀", 3]] as Array<[string, number]>) {
@@ -93,6 +97,8 @@ const CASES: Array<[string, number[]]> = [
     ["😀AB😀", [4, 5, 6]],                            // 代理对不被切断
     ["😀😀😀", [4, 5]],
     ["AAAA,BBBB\n\nCCC", [10]],
+    ["hello\rworld", [512]],                     // lone CR → LF
+    ["AAAA\r\nBBBB", [6, 512]],                  // CRLF → LF LF（等长，可能按段落切）
     ["你好\n世界\n", [7]],
     ["Hello, world! 你好世界。This is a test. 测试一下，看看效果！\n", [8, 20, 64]],
     ["a".repeat(600) + "\n" + "z".repeat(900), [800]],   // 累计后遇超长行
@@ -112,7 +118,7 @@ for (const [text, limits] of CASES) {
 console.log("3. 定种子随机语料");
 
 test("300 组随机文本 × 随机 limit 输出一致", () => {
-    const alphabet = ["a", "b", "你", "好", "。", "！", "，", ";", ".", " ", "\n", "\n\n", "😀"];
+    const alphabet = ["a", "b", "你", "好", "。", "！", "，", ";", ".", " ", "\n", "\n\n", "\r", "\r\n", "😀"];
     // limit 下限须容得下最宽的单字符（😀 4 字节）：更小的 limit 会让两份实现都不收敛，与一致性无关
     const MIN_LIMIT = 8;
     let seed = 20260909; // 固定种子：失败可复现

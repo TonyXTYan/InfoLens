@@ -136,7 +136,11 @@
     const id = typeof msg.id === 'string' ? msg.id : '';
     if (!id) throw new Error('PDF upload id missing');
     if (msg.type === 'il-pdf-upload-start') {
-      await globalThis.IL_pdfStashStartUpload({ id, fileName: msg.fileName });
+      await globalThis.IL_pdfStashStartUpload({
+        id,
+        fileName: msg.fileName,
+        sourceHref: msg.sourceHref,
+      });
       return;
     }
     if (msg.type === 'il-pdf-upload-chunk') {
@@ -187,7 +191,8 @@
     }
     const id = crypto.randomUUID();
     const fileName = typeof msg.fileName === 'string' && msg.fileName.trim() ? msg.fileName.trim() : 'document.pdf';
-    await globalThis.IL_pdfStashPut({ id, data, fileName });
+    const sourceHref = typeof msg.sourceHref === 'string' && msg.sourceHref ? msg.sourceHref : tabUrl;
+    await globalThis.IL_pdfStashPut({ id, data, fileName, sourceHref });
     await openViewer(id);
   }
 

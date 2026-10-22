@@ -36,7 +36,8 @@ function mockCaches(files) {
           return Object.keys(bucket).map((url) => ({ url }));
         },
         async match(req) {
-          const rec = bucket[req.url];
+          const key = typeof req === 'string' ? req : req.url;
+          const rec = bucket[key];
           if (!rec) return undefined;
           const headers = rec.headers || {};
           return {
@@ -46,8 +47,24 @@ function mockCaches(files) {
                 return hit == null ? null : headers[hit];
               },
             },
-            blob: async () => ({ size: rec.size }),
+            blob: async () => (rec.blob ? rec.blob : { size: rec.size }),
+            arrayBuffer: async () => {
+              if (rec.blob) return rec.blob.arrayBuffer();
+              return new ArrayBuffer(rec.size || 0);
+            },
           };
+        },
+        async delete(req) {
+          const url = req.url || req;
+          if (!(url in bucket)) return false;
+          delete bucket[url];
+          return true;
+        },
+        async put(url, res) {
+          const u = url.url || url;
+          const blob = await res.blob();
+          bucket[u] = { blob, headers: {} };
+          for (const [k, v] of res.headers.entries()) bucket[u].headers[k] = v;
         },
       };
     },
@@ -111,6 +128,15 @@ test('hubRemoteHost / hubOrigins 按源区分', () => {
   assert.deepEqual(S.hubOrigins('modelscope'), ['https://*.modelscope.cn/*']);
 });
 
+test('localModelHost 开启时 local 源指向本机', () => {
+  const prev = globalThis.IH_CONFIG;
+  globalThis.IH_CONFIG = { localModelHost: 'http://127.0.0.1:8765/' };
+  assert.equal(S.hubRemoteHost('local'), 'http://127.0.0.1:8765/');
+  assert.deepEqual(S.hubOrigins('local'), ['http://127.0.0.1:8765/*']);
+  assert.equal(S.normalizeHub('local'), S.HUB_LOCAL);
+  globalThis.IH_CONFIG = prev;
+});
+
 test('ModelScope URL 也计入本模型占用', async () => {
   mockCaches({
     [`https://www.modelscope.cn/models/${MODEL}/resolve/main/onnx/model_q4.onnx`]: {
@@ -120,6 +146,28 @@ test('ModelScope URL 也计入本模型占用', async () => {
   assert.deepEqual(await S.modelCacheUsage(), { entries: 1, bytes: 10 });
 });
 
+test('hubRepoId：Qwen 在 ModelScope 用 ddqy08', () => {
+  const spec = S.localSpec(S.CLOUD_QWEN);
+  assert.equal(S.hubRepoId('huggingface', spec), 'dqy08/Qwen3-0.6B-Base-ONNX');
+  assert.equal(S.hubRepoId('modelscope', spec), 'ddqy08/Qwen3-0.6B-Base-ONNX');
+  assert.equal(S.hubRepoId('huggingface', S.localSpec(S.CLOUD_GEMMA)), S.MODEL_ID);
+});
+
+test('Qwen ModelScope（ddqy08）计入占用且可单独清空', async () => {
+  const ms = 'ddqy08/Qwen3-0.6B-Base-ONNX';
+  const msUrl = `https://www.modelscope.cn/models/${ms}/resolve/main/onnx/model_q4.onnx`;
+  const hf = S.localSpec(S.CLOUD_QWEN).hubId;
+  const hfUrl = `https://huggingface.co/${hf}/resolve/main/onnx/model_q4.onnx`;
+  mockCaches({
+    [msUrl]: { headers: { 'Content-Length': '11' } },
+    [hfUrl]: { headers: { 'Content-Length': '22' } },
+  });
+  assert.deepEqual(await S.modelCacheUsage(S.CLOUD_QWEN), { entries: 2, bytes: 33 });
+  await S.dropModelCache(S.CLOUD_QWEN);
+  assert.deepEqual(await S.modelCacheUsage(S.CLOUD_GEMMA), { entries: 0, bytes: 0 });
+  assert.deepEqual(await S.modelCacheUsage(S.CLOUD_QWEN), { entries: 0, bytes: 0 });
+});
+
 test('dropModelCache 删掉整个缓存桶', async () => {
   const store = mockCaches({
     [modelUrl('onnx/model_q4.onnx')]: { headers: { 'Content-Length': '10' } },
@@ -127,4 +175,44 @@ test('dropModelCache 删掉整个缓存桶', async () => {
   await S.dropModelCache();
   assert.equal(CACHE in store, false);
   assert.deepEqual(await S.modelCacheUsage(), { entries: 0, bytes: 0 });
+});
+
+test('modelCacheUsage 按本机型号分开计', async () => {
+  const qwen = S.localSpec(S.CLOUD_QWEN).hubId;
+  mockCaches({
+    [modelUrl('onnx/model_q4.onnx')]: { headers: { 'Content-Length': '10' } },
+    [`https://huggingface.co/${qwen}/resolve/main/onnx/model_q4.onnx`]: {
+      headers: { 'Content-Length': '20' },
+    },
+  });
+  assert.deepEqual(await S.modelCacheUsage(S.CLOUD_GEMMA), { entries: 1, bytes: 10 });
+  assert.deepEqual(await S.modelCacheUsage(S.CLOUD_QWEN), { entries: 1, bytes: 20 });
+});
+
+test('Qwen 首 token 前缀 logits 与权重同桶、同 needle 删除', async () => {
+  const spec = S.localSpec(S.CLOUD_QWEN);
+  const url = S.prefixFirstLogitsCacheUrl('huggingface', spec, 151643, 4);
+  const floats = new Float32Array([1, 2, 3, 4]);
+  mockCaches({});
+  await S.savePrefixFirstLogits('huggingface', spec, 151643, 4, floats);
+  const loaded = await S.loadPrefixFirstLogits('huggingface', spec, 151643, 4);
+  assert.ok(loaded instanceof Float32Array);
+  assert.deepEqual([...loaded], [1, 2, 3, 4]);
+  assert.deepEqual(await S.modelCacheUsage(S.CLOUD_QWEN), { entries: 1, bytes: 16 });
+  await S.dropModelCache(S.CLOUD_QWEN);
+  assert.equal(await S.loadPrefixFirstLogits('huggingface', spec, 151643, 4), null);
+});
+
+test('dropModelCache(localId) 只删该型号', async () => {
+  const qwen = S.localSpec(S.CLOUD_QWEN).hubId;
+  const gemmaUrl = modelUrl('onnx/model_q4.onnx');
+  const qwenUrl = `https://huggingface.co/${qwen}/resolve/main/onnx/model_q4.onnx`;
+  const store = mockCaches({
+    [gemmaUrl]: { headers: { 'Content-Length': '10' } },
+    [qwenUrl]: { headers: { 'Content-Length': '20' } },
+  });
+  await S.dropModelCache(S.CLOUD_GEMMA);
+  assert.equal(CACHE in store, true);
+  assert.deepEqual(await S.modelCacheUsage(S.CLOUD_GEMMA), { entries: 0, bytes: 0 });
+  assert.deepEqual(await S.modelCacheUsage(S.CLOUD_QWEN), { entries: 1, bytes: 20 });
 });

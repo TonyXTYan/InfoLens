@@ -83,7 +83,7 @@ test('drop-stale：无 isLive / 已作废则清掉全局', () => {
 
 test('扩展重载后的旧世界：有痕迹则 stale，拒绝再注入', () => {
   const bg = readFileSync(join(dir, '../background.js'), 'utf8');
-  const peek = bg.match(/async function pageCsPeek\(tabId, method, cloudModel\) \{[\s\S]*?\n\}/);
+  const peek = bg.match(/async function pageCsPeek\(tabId, method, cloudModel, trigger\) \{[\s\S]*?\n\}/);
   assert.ok(peek, 'pageCsPeek missing');
   assert.match(peek[0], /data-ih-cs/);
   assert.doesNotMatch(peek[0], /il-pdf-entry/);
@@ -91,16 +91,18 @@ test('扩展重载后的旧世界：有痕迹则 stale，拒绝再注入', () =>
   assert.doesNotMatch(peek[0], /ih-token-0/);
   assert.match(peek[0], /demo\.isLive/);
   assert.match(peek[0], /pdf\?\.isLive/);
-  assert.match(bg, /pageCsPeek\(tab\.id, force \? 'force' : 'toggle', pinned\)/);
+  assert.match(peek[0], /demo\.toggle\(why\)/);
+  assert.match(peek[0], /demo\.force\(model, why\)/);
+  assert.match(bg, /pageCsPeek\(tab\.id, force \? 'force' : 'toggle', pinned, why\)/);
   assert.match(bg, /peek\.state === 'live' && peek\.result/);
   assert.match(bg, /pageCsPeek\(tabId, 'start'\)/);
   assert.match(bg, /IL_pdfSw\.isPdfUrl\(url\)[\s\S]*pageCsPeek\(tab\.id\)/);
-  assert.match(bg, /async function refuseStalePage\(tabId\)/);
+  assert.match(bg, /async function refuseStalePage\(tabId, trigger\)/);
   assert.match(bg, /alert\(msg\)/);
   assert.match(bg, /A previous version of Info Highlight is still on this page/);
-  assert.match(bg, /await refuseStalePage\(tabId\)/);
+  assert.match(bg, /await refuseStalePage\(tab\.id, why\)/);
   assert.match(bg, /res\?\.ok === true/);
-  assert.match(bg, /if \(!ok\) \{\s*await setBadgeError\(tab\.id, 'inject'\)/);
+  assert.match(bg, /if \(!ok\) \{\s*await setBadgeError\(tab\.id, 'inject', why\)/);
   const pdfHl = readFileSync(join(dir, '../pdf/highlight.js'), 'utf8');
   assert.match(pdfHl, /if \(tab\?\.id !== message\.tabId\) return;/);
   assert.match(pdfHl, /sendResponse\(\{ ok: true \}\)/);
@@ -112,4 +114,27 @@ test('扩展重载后的旧世界：有痕迹则 stale，拒绝再注入', () =>
   assert.match(entry, /window\.__IH_PDF_ENTRY__/);
   assert.doesNotMatch(bg, /async function callPageApi/);
   assert.doesNotMatch(bg, /pageCsProbe/);
+});
+
+test('自动分析：过期标签静默跳过，不弹刷新、不算失败', () => {
+  const bg = readFileSync(join(dir, '../background.js'), 'utf8');
+  const auto = bg.slice(bg.indexOf('扩展重载后的过期标签静默跳过'), bg.indexOf('chrome.action.onClicked'));
+  assert.match(auto, /async function maybeAutoAnalyze/);
+  assert.match(auto, /if \(peek\.state === 'stale'\) \{[\s\S]*?return;/);
+  assert.match(auto, /if \(after\.state === 'stale'\) return;/);
+  assert.doesNotMatch(auto, /refuseStalePage/);
+  assert.doesNotMatch(auto, /pageAlert/);
+  assert.doesNotMatch(auto, /setBadgeError\(tabId, 'refresh this page'/);
+  assert.match(bg, /await refuseStalePage\(tab\.id, why\)/);
+  assert.doesNotMatch(bg, /await refuseStalePage\(tabId/);
+  assert.doesNotMatch(bg, /refuseStalePage\(tabId, 'auto'\)/);
+});
+
+test('收藏菜单：受保护页与 PDF 隐藏入口', () => {
+  const bg = readFileSync(join(dir, '../background.js'), 'utf8');
+  assert.match(bg, /function syncLibraryMenu/);
+  assert.match(bg, /IH_library\.saveBlockedUrl/);
+  assert.match(bg, /const visible = !IH_library\.saveBlockedUrl/);
+  assert.match(bg, /syncTabContextMenus/);
+  assert.match(bg, /chrome\.contextMenus\.update\(IH_library\.MENU_ID, \{ visible \}/);
 });

@@ -217,8 +217,22 @@
     throw new Error('PDF stash: storage full');
   }
 
+  /** 本机暂存来源网址，供匿名域名统计。只留 http(s) 与 file。 */
+  function sourceHrefOf(v) {
+    if (typeof v !== 'string') return '';
+    const s = v.trim();
+    if (!s) return '';
+    try {
+      const u = new URL(s);
+      if (u.protocol !== 'http:' && u.protocol !== 'https:' && u.protocol !== 'file:') return '';
+    } catch {
+      return '';
+    }
+    return s.slice(0, 2000);
+  }
+
   /**
-   * @param {{ id: string, data: ArrayBuffer, fileName?: string }} entry
+   * @param {{ id: string, data: ArrayBuffer, fileName?: string, sourceHref?: string }} entry
    * @returns {Promise<string>} id
    */
   async function putPdf(entry) {
@@ -230,6 +244,7 @@
       id: entry.id,
       data: entry.data,
       fileName: entry.fileName || 'document.pdf',
+      sourceHref: sourceHrefOf(entry.sourceHref),
       createdAt: Date.now(),
       byteLength: entry.data.byteLength,
     });
@@ -244,6 +259,7 @@
     await putRecord({
       id: entry.id,
       fileName: entry.fileName || 'document.pdf',
+      sourceHref: sourceHrefOf(entry.sourceHref),
       createdAt: Date.now(),
       byteLength: 0,
       chunkCount: null,
@@ -359,6 +375,7 @@
     return {
       data,
       fileName: row.fileName || 'document.pdf',
+      sourceHref: typeof row.sourceHref === 'string' ? row.sourceHref : '',
       createdAt: row.createdAt,
     };
   }

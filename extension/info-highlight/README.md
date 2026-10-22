@@ -26,14 +26,14 @@ cd extension/info-highlight && npm install
 
 clone 后至少要装一次，再 `build_extension.py`。选项里可改「自动 / 仅本机 / 仅云端」；本机模型需先在「本地模型初始化」里同意下载。仅本机失败不会改走云端。
 
-右键「Analyze this page」等同点工具栏；「Force analyze this page」跳过缓存再跑（已有高亮会清掉重画）；正在分析时用系统提示说明，等结束后再点。「Always analyze example.com」→ 当场申请该 hostname 的 host 权限（子域各算各的），之后该站前台标签在 `complete` 后自动分析一次：马上跑；第一段结束时正文变了就作废重来。若整轮 1 秒内结束，等到 1 秒再对一次（补查结束前图标保持分析中。页内已在跑或已画好就不动它）。点图标可在加载中注入，抽正文和分析等 `complete`。补查结束后 DOM 再变不自动重抽，映不回的高亮丢掉；要按新正文就点工具栏清掉再点一次。
+右键「Analyze this page」等同点工具栏；「Force analyze this page」跳过缓存再跑（已有高亮会清掉重画）；正在分析时用系统提示说明，等结束后再点。「Always analyze example.com」→ 当场申请该 hostname 的 host 权限（子域各算各的），之后该站前台标签在 `complete` 后自动分析一次。动态跟踪开着：马上跑，晚到正文由跟踪补画。关掉：马上跑；第一段结束时正文变了就作废重来；若整轮 1 秒内结束，等到 1 秒再对一次（补查结束前图标保持分析中。页内已在跑或已画好就不动它）；补查结束后 DOM 再变不自动重抽，映不回的高亮丢掉，要按新正文就点工具栏清掉再点一次。点图标可在加载中注入，抽正文和分析等 `complete`。
 PDF 与 `file:` 不进这条路。名单在选项页 Auto analyze 里增删（删时连权限一起撤），那里还可填 `*.example.com` 或 `*`；右键菜单只管精确 hostname，通配项去选项页管。
 
 受限页（`chrome://`、Web Store、…）无操作。无键盘快捷键。
 
 `file:` PDF 须在扩展详情页打开 “Allow access to file URLs”。
 
-本地调试改 gitignore 的 `config.js`（例如 `modalDebug: true`），再构建。没有这份就用空配置。上架构建带 `--release`，写入空配置，不带本地这份。
+本地调试改 gitignore 的 `config.js`（例如 `modalDebug: true`，或 `apiBase: 'https://…'` 指向沙箱门面），再构建。没有这份就用空配置。上架构建带 `--release`，写入空配置，不带本地这份。
 
 ## Test and package
 

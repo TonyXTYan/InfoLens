@@ -16,6 +16,8 @@ concurrency:
 
 jobs:
   deploy:
+    # 只在公开仓运行；私有仓 main 是开发主线，不能同步出去。
+    if: github.repository == 'dqy08/InfoLens'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

@@ -292,6 +292,25 @@
 .intro-more .intro-block + .intro-block {
   border-top: 1px dashed var(--border-color);
 }
+
+// 工具下方 About：默认折叠，仅多一行；中英两份正文随 html[lang] 显示
+.page-about {
+  margin-top: 16px;
+  margin-bottom: 8px;
+  position: relative;
+  z-index: 1;
+  background: var(--bg-color);
+
+  .intro-more:not([open]) {
+    display: block;
+    width: fit-content;
+  }
+}
+
+html[lang="en"] .page-about [lang="zh"],
+html[lang^="zh"] .page-about [lang="en"] {
+  display: none;
+}
 // 分析进度显示样式
 .analyze-progress {
   display: none;  // 默认隐藏

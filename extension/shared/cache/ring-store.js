@@ -13,7 +13,6 @@ globalThis.IL_createRingStore = function IL_createRingStore({
   const META = `${prefix}meta`;
   const ORDER = `${prefix}order`;
   const RESERVED = new Set([META, ORDER, ...legacyKeys]);
-  const subtle = globalThis.crypto.subtle;
 
   const mem = Object.create(null);
   const memoryLocal = {
@@ -49,8 +48,27 @@ globalThis.IL_createRingStore = function IL_createRingStore({
     return out;
   }
 
+  /** 非安全上下文（如 http:// 页内 content script）无 crypto.subtle，仅作缓存 key。 */
+  function hashStrFallback(s) {
+    const bytes = new TextEncoder().encode(String(s));
+    let out = '';
+    for (let seed = 0; seed < 4; seed++) {
+      let h = (0x811c9dc5 ^ seed) >>> 0;
+      for (let i = 0; i < bytes.length; i++) {
+        h ^= bytes[i];
+        h = Math.imul(h, 0x01000193);
+      }
+      out += (h >>> 0).toString(16).padStart(8, '0');
+    }
+    return out;
+  }
+
   async function hashStr(s) {
-    return hex(await subtle.digest('SHA-256', new TextEncoder().encode(String(s)))).slice(0, 32);
+    const subtle = globalThis.crypto?.subtle;
+    if (subtle) {
+      return hex(await subtle.digest('SHA-256', new TextEncoder().encode(String(s)))).slice(0, 32);
+    }
+    return hashStrFallback(s);
   }
 
   function get(keys) {

@@ -9,6 +9,7 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+scripts/.venv-qwen3-onnx/
 env/
 node_modules/
 client/src/node_modules/

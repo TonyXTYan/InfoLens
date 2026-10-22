@@ -40,6 +40,7 @@ globalThis.IH_feedbackContext ||= (function () {
     const sum = pending?.session_summary;
     if (sum) {
       lines.push(
+        `session.from=${sum.from}`,
         `session.next=${sum.next}`,
         `session.painted=${sum.painted}`,
         `segments_total=${sum.segments_total}`,
@@ -65,6 +66,7 @@ globalThis.IH_feedbackContext ||= (function () {
       err: args?.err ?? null,
       session_summary: session
         ? {
+            from: Number(session.from) || 0,
             next: Number(session.next) || 0,
             painted: Number(session.painted) || 0,
             segments_total: Array.isArray(session.segs) ? session.segs.length : 0,

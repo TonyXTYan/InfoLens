@@ -136,9 +136,9 @@
     return btoa(binary);
   }
 
-  async function uploadPdf(data, fileName) {
+  async function uploadPdf(data, fileName, sourceHref) {
     const id = crypto.randomUUID();
-    await sendMessage({ type: 'il-pdf-upload-start', id, fileName });
+    await sendMessage({ type: 'il-pdf-upload-start', id, fileName, sourceHref });
     const bytes = new Uint8Array(data);
     let index = 0;
     for (let offset = 0; offset < bytes.length; offset += UPLOAD_CHUNK_BYTES) {
@@ -201,10 +201,11 @@
         btn.removeAttribute('title');
         try {
           const fileName = fileNameFromHref(location.href);
+          const sourceHref = location.href;
           // file://：页内无法读，交 SW；http(s)：页内读并分块上传，保留网站登录态。
           const data = location.protocol === 'file:' ? null : await fetchPdfBytes(location.href);
-          if (data) await uploadPdf(data, fileName);
-          else await sendMessage({ type: 'il-open-pdf-viewer', fileName });
+          if (data) await uploadPdf(data, fileName, sourceHref);
+          else await sendMessage({ type: 'il-open-pdf-viewer', fileName, sourceHref });
           host.hidden = true;
           btn.textContent = DEFAULT_LABEL;
         } catch (err) {

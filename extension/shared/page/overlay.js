@@ -36,6 +36,7 @@ globalThis.IL_overlay ||= (() => {
    *   continueHidden?: boolean,
    *   continueLabel?: string,
    *   feedbackHidden?: boolean,
+   *   feedbackLabel?: string,
    *   onContinue?: () => void,
    *   onClose?: () => void,
    * }} opts
@@ -64,11 +65,14 @@ globalThis.IL_overlay ||= (() => {
     const actions = document.createElement('div');
     actions.className = 'semantic-find-status-actions';
 
+    const feedbackLabel = String(opts.feedbackLabel || '').trim() || 'Feedback';
     const feedbackBtn = document.createElement('button');
     feedbackBtn.type = 'button';
     feedbackBtn.className = 'semantic-find-status-feedback';
-    feedbackBtn.title = 'Report this to the author';
-    feedbackBtn.setAttribute('aria-label', 'Report this to the author');
+    feedbackBtn.dataset.feedbackLabel = feedbackLabel;
+    feedbackBtn.textContent = feedbackLabel;
+    feedbackBtn.title = feedbackLabel;
+    feedbackBtn.setAttribute('aria-label', feedbackLabel);
     feedbackBtn.hidden = opts.feedbackHidden !== false;
 
     const continueBtn = document.createElement('button');

@@ -87,11 +87,12 @@ def copy_info_highlight_transformers(source: Path, output: Path) -> None:
         text.replace(old_common, 'from "./ort.webgpu.mjs"').replace(old_web, 'from "./ort.webgpu.mjs"'),
         encoding="utf-8",
     )
+    # onnxruntime-web 1.30+ WebGPU 动态加载 asyncify；旧版用 jsep。与 overrides 里的 ort 版本保持一致。
     missing = []
     for name in (
         "ort.webgpu.mjs",
-        "ort-wasm-simd-threaded.jsep.wasm",
-        "ort-wasm-simd-threaded.jsep.mjs",
+        "ort-wasm-simd-threaded.asyncify.mjs",
+        "ort-wasm-simd-threaded.asyncify.wasm",
     ):
         src = ort_dist / name
         if not src.is_file():

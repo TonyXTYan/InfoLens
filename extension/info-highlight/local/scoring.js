@@ -5,7 +5,8 @@
 globalThis.IH_localScoring ||= (function () {
   const TOPK = 10;
   const SIG_FIGS = 7;
-  const META = '\u2581';
+  /** SentencePiece ▁ 与 GPT-2 Ġ 都当词首空格。 */
+  const SPACE_MARK = /[\u2581\u0120]/g;
   const BYTE_PIECE = /^<0x([0-9A-Fa-f]{2})>$/;
   const utf8dec = new TextDecoder('utf-8', { fatal: true });
 
@@ -77,15 +78,94 @@ globalThis.IH_localScoring ||= (function () {
     return offsets.map(([s, e]) => [idx.utf16ToCp(s), idx.utf16ToCp(e)]);
   }
 
+  /** Qwen ByteLevel：词表字符 → UTF-8 字节（与 transformers.js BYTES_TO_UNICODE 互逆）。 */
+  const qwenByteDecoder = (() => {
+    const bytes = [
+      ...Array.from({ length: 94 }, (_, i) => i + 33),
+      ...Array.from({ length: 12 }, (_, i) => i + 161),
+      ...Array.from({ length: 82 }, (_, i) => i + 174),
+    ];
+    const codes = [...bytes];
+    let extra = 0;
+    for (let b = 0; b < 256; b++) {
+      if (!bytes.includes(b)) {
+        bytes.push(b);
+        codes.push(256 + extra);
+        extra += 1;
+      }
+    }
+    return new Map(codes.map((code, i) => [String.fromCodePoint(code), bytes[i]]));
+  })();
+
+  /**
+   * Qwen3 ByteLevel：pieces（convert_ids_to_tokens）对齐原文 UTF-16 span。
+   * 字素 NFC + UTF-8 字节流 + ByteLevel 词表逆映射；等价于 Python return_offsets_mapping（transformers.js 未提供时）。
+   * SYNC: backend/core/language_checker.py → _encode_text offset_mapping（Qwen）
+   * @param {string} text 与 tokenizer.encode 相同的原文
+   * @param {readonly string[]} pieces
+   * @param {ReadonlyMap<string, string>} [addedTokens] added token 按字面 UTF-8
+   * @returns {Array<{ start: number, end: number }>} UTF-16 偏移，end 为开区间
+   */
+  function alignQwenByteTokens(text, pieces, addedTokens = new Map()) {
+    const encoder = new TextEncoder();
+    const bytes = [];
+    const starts = [];
+    const ends = [];
+    let normalized = '';
+    const segments = new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text);
+    for (const segment of segments) {
+      const canonical = segment.segment.normalize('NFC');
+      normalized += canonical;
+      for (const byte of encoder.encode(canonical)) {
+        bytes.push(byte);
+        starts.push(segment.index);
+        ends.push(segment.index + segment.segment.length);
+      }
+    }
+    if (normalized !== text.normalize('NFC')) {
+      throw new Error('token offset align failed: text NFC grapheme mismatch');
+    }
+    let cursor = 0;
+    const result = pieces.map((piece) => {
+      const literal = addedTokens.get(piece);
+      let tokenBytes;
+      if (literal !== undefined) {
+        tokenBytes = Array.from(encoder.encode(literal));
+      } else {
+        tokenBytes = [];
+        for (const ch of piece) {
+          const b = qwenByteDecoder.get(ch);
+          if (b === undefined) {
+            throw new Error(`token offset align failed at ${starts[cursor] ?? cursor} for piece=${piece}`);
+          }
+          tokenBytes.push(b);
+        }
+      }
+      if (!tokenBytes.length || tokenBytes.some((byte, i) => byte !== bytes[cursor + i])) {
+        throw new Error(`token offset align failed at ${starts[cursor] ?? cursor} for piece=${piece}`);
+      }
+      const start = starts[cursor];
+      cursor += tokenBytes.length;
+      return { start, end: ends[cursor - 1] };
+    });
+    if (cursor !== bytes.length) {
+      throw new Error(`token offset align failed: ${cursor} of ${bytes.length} bytes consumed`);
+    }
+    return result;
+  }
+
   /**
    * 按 token 在原文里顺序对齐 UTF-16 偏移。特殊 token 记为空 span。
-   * 词表片：▁→空格；<0xXX> 拼 UTF-8。必须贴着 cursor，对不上就抛。
+   * 词表片：▁/Ġ→空格；<0xXX> 拼 UTF-8。必须贴着 cursor，对不上就抛。
    * @param {string} text
    * @param {number[]} ids
-   * @param {(id: number) => string} tokenStr convert_ids_to_tokens
+   * @param {(id: number) => string} tokenStr convert_ids_to_tokens（<0xXX> 字节片）
    * @param {Set<number>} specialIds
+   * @param {{ pieceText?: (id: number) => string }} [options]
+   *   pieceText：单 token 经 tokenizer.decode 的 UTF-16 片段，对齐云端 offset_mapping（ByteLevel 等）。
    */
-  function alignUtf16Offsets(text, ids, tokenStr, specialIds) {
+  function alignUtf16Offsets(text, ids, tokenStr, specialIds, options) {
+    const pieceText = options?.pieceText;
     const offsets = [];
     let cursor = 0;
     const bytes = [];
@@ -147,7 +227,8 @@ globalThis.IH_localScoring ||= (function () {
         continue;
       }
       emitUtf8();
-      const span = spanFor(raw.replaceAll(META, ' '), id);
+      const piece = pieceText ? pieceText(id) : raw.replace(SPACE_MARK, ' ');
+      const span = spanFor(piece, id);
       offsets.push(span);
       cursor = span[1];
     }
@@ -238,12 +319,10 @@ globalThis.IH_localScoring ||= (function () {
    */
   function bpeFromRows({ rows, ids, offsets, text, decodeId }) {
     const { offsets: payload, insertFirst } = scoringPayloadOffsets(offsets);
-    if (insertFirst) {
-      throw new Error('Gemma scoring requires a leading empty BOS span');
-    }
     const scored = Math.max(0, ids.length - 1);
-    if (payload.length > scored) {
-      throw new Error(`payload ${payload.length} longer than scored positions ${scored}`);
+    const maxByIds = insertFirst ? ids.length : scored;
+    if (payload.length > maxByIds) {
+      throw new Error(`payload ${payload.length} longer than scored positions ${maxByIds}`);
     }
     if (payload.length > rows.length) {
       throw new Error(`payload ${payload.length} longer than rows ${rows.length}`);
@@ -269,6 +348,7 @@ globalThis.IH_localScoring ||= (function () {
     ensureGemmaBos,
     utf16ToCpOffsets,
     alignUtf16Offsets,
+    alignQwenByteTokens,
     scoreRow,
     scoreChunk,
     bpeFromRows,

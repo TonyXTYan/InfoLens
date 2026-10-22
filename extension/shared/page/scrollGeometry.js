@@ -91,6 +91,30 @@ globalThis.IL_scrollGeometry = (() => {
     };
   }
 
+  /**
+   * 视口上沿起的段：最后一段「底边还在视口顶之上」的下一段。
+   * 页眉若在屏幕上、但排在已滚走的正文前面，不算起点。
+   * 量到的段全在视口之上则取最后一段；一段都量不到则 0。
+   * @param {Array<null | { y1: number }>} ys
+   * @param {number} viewTop
+   */
+  function segmentIndexFromViewportTop(ys, viewTop) {
+    let saw = false;
+    let lastMeasured = 0;
+    let lastAbove = -1;
+    for (let i = 0; i < ys.length; i++) {
+      const cy = ys[i];
+      if (!cy) continue;
+      saw = true;
+      lastMeasured = i;
+      if (cy.y1 < viewTop) lastAbove = i;
+    }
+    if (!saw) return 0;
+    if (lastAbove < 0) return 0;
+    if (lastAbove >= ys.length - 1) return lastMeasured;
+    return lastAbove + 1;
+  }
+
   return {
     isWindowScrollRoot,
     isScrollableEl,
@@ -101,5 +125,6 @@ globalThis.IL_scrollGeometry = (() => {
     xFromContentY,
     contentYFromX,
     scrollTopAtContentY,
+    segmentIndexFromViewportTop,
   };
 })();

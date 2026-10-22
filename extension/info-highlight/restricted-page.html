@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en" data-ih-i18n="1">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Info Highlight</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --fg: #1f1f1f;
+      --muted: #5e5e5e;
+      --bg: #fff;
+      --btn-border: #747775;
+      --bar: #1a73e8;
+      --on-bar: #fff;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --fg: #e3e3e3;
+        --muted: #c4c7c5;
+        --bg: #1f1f1f;
+        --btn-border: #8e918f;
+        --bar: #8ab4f8;
+        --on-bar: #1f1f1f;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font: 16px/1.45 system-ui, sans-serif;
+      color: var(--fg);
+      background: var(--bg);
+    }
+    main { max-width: 520px; margin: 0 auto; padding: 24px; }
+    h1 { font-size: 1.25rem; font-weight: 600; margin: 0 0 12px; overflow-wrap: anywhere; }
+    p { margin: 0 0 12px; color: var(--muted); }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+    button {
+      font: inherit;
+      font-weight: 500;
+      height: 36px;
+      padding: 0 16px;
+      border: 1px solid var(--bar);
+      border-radius: 16px;
+      background: var(--bar);
+      color: var(--on-bar);
+      cursor: pointer;
+    }
+    button:hover { filter: brightness(1.08); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1 data-i18n>Can't analyze this page</h1>
+    <p data-i18n>The browser doesn't let extensions run on protected pages such as Chrome settings or the Chrome Web Store. Open a regular webpage and try again.</p>
+    <div class="actions">
+      <button type="button" id="close" data-i18n>Got it</button>
+    </div>
+  </main>
+  <script src="config.js"></script>
+  <script src="zh.js"></script>
+  <script src="options-i18n.js"></script>
+  <script src="i18n.js"></script>
+  <script src="restricted-page.js"></script>
+</body>
+</html>

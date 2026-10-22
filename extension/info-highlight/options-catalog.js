@@ -8,10 +8,12 @@
  *    （本功能首次落地的升级迁移）。已有 seen 的用户会自动把 catalog 里多出的 id 当新的。
  * 4. build 后重新加载 dist/
  *
- * 本版：升级用户视 intensity / paint style / highlight color / one-tone / merge subwords / auto-sites / cloud model / article only 为新；其余为旧。新安装整份视为已看。
+ * 本版：升级用户视 intensity / paint style / highlight color / one-tone / merge subwords / auto-sites / cloud model / article only / dynamic track 为新；其余为旧。新安装整份视为已看。
  */
 globalThis.IL_OPTIONS_CATALOG = Object.freeze([
   'ih_article_only',
+  'ih_dynamic_track',
+  'ih_from_viewport',
   'show_progress',
   'show_token_tip',
   'ih_paint_style',
@@ -23,7 +25,9 @@ globalThis.IL_OPTIONS_CATALOG = Object.freeze([
   'ih_word_merge',
   'analyze_pref',
   'ih_cloud_model',
+  'ih_cloud_api_base',
   'ih_auto_sites',
+  'cloud_credits',
 ]);
 
 /** 升级且尚无 seen 键时写入；勿把本版新项写进来 */

@@ -30,6 +30,7 @@
     ]
       .filter(Boolean)
       .join(', ');
+    const skipCheckVisibility = !!globalThis.IL_TEXT_MAP_SKIP_CHECK_VISIBILITY;
     /** 同父节点可见性只算一次（一篇正文大量文本节点共享父元素） */
     const visCache = new WeakMap();
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
@@ -44,14 +45,16 @@
         if (p.closest(excludeSelector)) {
           return NodeFilter.FILTER_REJECT;
         }
-        // 折叠/hidden/MathML annotation 等不可见文本不送语义；
-        // 公式只剩 MathML 摊平字符（如 dmodel=512），不用 alttext/LaTeX。
-        let visible = visCache.get(p);
-        if (visible === undefined) {
-          visible = typeof p.checkVisibility === 'function' ? p.checkVisibility() : true;
-          visCache.set(p, visible);
+        if (!skipCheckVisibility) {
+          // 折叠/hidden/MathML annotation 等不可见文本不送语义；
+          // 公式只剩 MathML 摊平字符（如 dmodel=512），不用 alttext/LaTeX。
+          let visible = visCache.get(p);
+          if (visible === undefined) {
+            visible = typeof p.checkVisibility === 'function' ? p.checkVisibility() : true;
+            visCache.set(p, visible);
+          }
+          if (!visible) return NodeFilter.FILTER_REJECT;
         }
-        if (!visible) return NodeFilter.FILTER_REJECT;
         return NodeFilter.FILTER_ACCEPT;
       },
     });

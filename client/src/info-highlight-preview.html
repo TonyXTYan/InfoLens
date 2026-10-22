@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Editable preview — Info Highlight sample</title>
+  <script>
+    (function () {
+      var t = localStorage.getItem('ih-sample-theme');
+      if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+    })();
+  </script>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #2a3238;
+      --muted: color-mix(in srgb, var(--ink) 55%, transparent);
+      --bg: #faf9f7;
+    }
+    :root[data-theme="light"] {
+      color-scheme: light;
+      --ink: #2a3238;
+      --bg: #faf9f7;
+    }
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --ink: #e4e4e4;
+      --bg: #1a1d21;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme]) {
+        color-scheme: dark;
+        --ink: #e4e4e4;
+        --bg: #1a1d21;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Times New Roman", Times, serif;
+    }
+    #ih-sample-article {
+      max-width: 42rem;
+      margin: 0 auto;
+      padding: 2.5rem 1.25rem 2rem;
+      font-family: inherit;
+      font-size: var(--ih-article-size, 17px);
+      line-height: 1.55;
+      outline: none;
+      min-height: 6rem;
+      cursor: text;
+      background: transparent;
+    }
+    #ih-sample-article :where(p, div, span, li, h1, h2, h3, font, b, i, em, strong) {
+      font-family: inherit;
+      font-size: inherit !important;
+      line-height: inherit;
+      color: inherit;
+      background: transparent;
+    }
+    #ih-sample-article p,
+    #ih-sample-article div {
+      margin: 0;
+    }
+    #ih-sample-article.ih-article-bold {
+      font-weight: 700;
+    }
+    #ih-sample-article.ih-article-bold :where(p, div, span, li, h1, h2, h3, font, b, i, em, strong) {
+      font-weight: inherit !important;
+    }
+    #ih-sample-controls {
+      max-width: 42rem;
+      margin: 0 auto;
+      padding: 0 1.25rem 2.5rem;
+      font: 14px/1.45 system-ui, sans-serif;
+      color: var(--muted);
+    }
+    #ih-sample-controls .hint {
+      margin: 0;
+      font-size: 0.9rem;
+    }
+    #ih-sample-controls .control {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      margin-top: 0.85rem;
+      font-size: 0.9rem;
+    }
+    #ih-sample-theme {
+      font: inherit;
+      color: var(--ink);
+      background: color-mix(in srgb, var(--ink) 6%, var(--bg));
+      border: none;
+      border-radius: 6px;
+      padding: 0.35rem 0.5rem;
+    }
+    #ih-sample-font-size {
+      flex: 1;
+      max-width: 14rem;
+    }
+    #ih-sample-font-value {
+      min-width: 3.25rem;
+      font-variant-numeric: tabular-nums;
+      color: var(--ink);
+    }
+  </style>
+</head>
+<body data-ih-sample-page>
+  <article
+    id="ih-sample-article"
+    contenteditable="true"
+    spellcheck="true"
+    aria-label="Article text"
+  ><p>Highlight the informative words. Read faster.<br /><br />Facing a wall of text, almost everyone finds reading difficult to some degree, especially those with ADHD. The way humans read has not fundamentally changed in a thousand years: the eye still goes word by word. Speed-reading methods exist, but they are limited by the physiology of the brain and the eyes. In the age of AI, there is a new way to read faster: let a large language model highlight where your eyes should linger, and skip the rest.</p></article>
+
+  <div id="ih-sample-controls" aria-hidden="true">
+    <p class="hint">Click the article area above to type or paste.</p>
+    <label class="control">
+      <span>Font size</span>
+      <input id="ih-sample-font-size" type="range" min="12" max="28" step="1" />
+      <span id="ih-sample-font-value"></span>
+    </label>
+    <label class="control">
+      <input id="ih-sample-bold" type="checkbox" />
+      <span>Bold text</span>
+    </label>
+    <label class="control">
+      <span>Theme</span>
+      <select id="ih-sample-theme" aria-label="Color theme">
+        <option value="system">System</option>
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+      </select>
+    </label>
+  </div>
+
+  <script>
+    const HTML_KEY = 'ih-sample-article-html';
+    const TITLE_KEY = 'ih-sample-title';
+    const BODY_KEY = 'ih-sample-body';
+    const LEGACY_SOURCE_KEY = 'ih-sample-source';
+    const FONT_KEY = 'ih-sample-font-size';
+    const THEME_KEY = 'ih-sample-theme';
+    const BOLD_KEY = 'ih-sample-bold';
+    const DEFAULT_TEXT = `Highlight the informative words. Read faster.
+
+Facing a wall of text, almost everyone finds reading difficult to some degree, especially those with ADHD. The way humans read has not fundamentally changed in a thousand years: the eye still goes word by word. Speed-reading methods exist, but they are limited by the physiology of the brain and the eyes. In the age of AI, there is a new way to read faster: let a large language model highlight where your eyes should linger, and skip the rest.`;
+
+    const articleEl = document.getElementById('ih-sample-article');
+    const fontSlider = document.getElementById('ih-sample-font-size');
+    const fontValueEl = document.getElementById('ih-sample-font-value');
+    const themeSelect = document.getElementById('ih-sample-theme');
+    const boldToggle = document.getElementById('ih-sample-bold');
+
+    function escapeHtml(s) {
+      return s
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function plainTextToHtml(text) {
+      const trimmed = text.trim();
+      if (!trimmed) return '';
+      const inner = trimmed
+        .split('\n')
+        .map((line) => escapeHtml(line))
+        .join('<br />');
+      return `<p>${inner}</p>`;
+    }
+
+    function htmlFromPlainFields(...parts) {
+      const combined = parts.map((p) => p.trim()).filter(Boolean).join('\n\n');
+      return plainTextToHtml(combined || '');
+    }
+
+    function loadArticleHtml() {
+      const savedHtml = localStorage.getItem(HTML_KEY);
+      if (savedHtml) return savedHtml;
+
+      const savedTitle = localStorage.getItem(TITLE_KEY);
+      const savedBody = localStorage.getItem(BODY_KEY);
+      if (savedTitle !== null || savedBody !== null) {
+        return htmlFromPlainFields(savedTitle ?? '', savedBody ?? '');
+      }
+
+      const legacy = localStorage.getItem(LEGACY_SOURCE_KEY);
+      if (legacy) {
+        const blocks = legacy.split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
+        const sep = blocks.findIndex((b) => /^—$|^–$|^-$|^---$/.test(b));
+        if (sep >= 0) {
+          return htmlFromPlainFields(
+            blocks.slice(0, sep).join('\n\n'),
+            blocks.slice(sep + 1).join('\n\n'),
+          );
+        }
+        return plainTextToHtml(legacy);
+      }
+
+      return plainTextToHtml(DEFAULT_TEXT);
+    }
+
+    function mergeArticleParagraphs() {
+      const paras = [...articleEl.children].filter((n) => n.tagName === 'P');
+      if (paras.length <= 1) return;
+      const merged = document.createElement('p');
+      merged.innerHTML = paras.map((p) => p.innerHTML).join('<br />');
+      for (const p of paras) p.remove();
+      articleEl.appendChild(merged);
+    }
+
+    function normalizeArticle() {
+      for (const el of articleEl.querySelectorAll('[style]')) {
+        el.removeAttribute('style');
+      }
+      for (const el of articleEl.querySelectorAll('[size]')) {
+        el.removeAttribute('size');
+      }
+      for (const font of [...articleEl.querySelectorAll('font')]) {
+        const span = document.createElement('span');
+        span.textContent = font.textContent;
+        font.replaceWith(span);
+      }
+      for (const el of articleEl.querySelectorAll('b, strong')) {
+        const span = document.createElement('span');
+        span.textContent = el.textContent;
+        el.replaceWith(span);
+      }
+      for (const div of [...articleEl.children].filter((n) => n.tagName === 'DIV')) {
+        const p = document.createElement('p');
+        p.innerHTML = div.innerHTML;
+        div.replaceWith(p);
+      }
+      mergeArticleParagraphs();
+    }
+
+    function persistArticle() {
+      normalizeArticle();
+      localStorage.setItem(HTML_KEY, articleEl.innerHTML);
+    }
+
+    function insertHtmlAtSelection(html) {
+      const sel = window.getSelection();
+      if (!sel?.rangeCount) return;
+      sel.deleteFromDocument();
+      const range = sel.getRangeAt(0);
+      const frag = range.createContextualFragment(html);
+      range.insertNode(frag);
+      range.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+
+    function applyFontSize(px) {
+      articleEl.style.setProperty('--ih-article-size', `${px}px`);
+      articleEl.style.fontSize = `${px}px`;
+      fontValueEl.textContent = `${px}px`;
+      fontSlider.value = String(px);
+    }
+
+    function applyBold(on) {
+      articleEl.classList.toggle('ih-article-bold', on);
+      boldToggle.checked = on;
+    }
+
+    function applyTheme(mode) {
+      const root = document.documentElement;
+      if (mode === 'light' || mode === 'dark') {
+        root.dataset.theme = mode;
+      } else {
+        delete root.dataset.theme;
+      }
+      themeSelect.value = mode === 'light' || mode === 'dark' ? mode : 'system';
+    }
+
+    const savedHtml = localStorage.getItem(HTML_KEY);
+    const legacyTitle = localStorage.getItem(TITLE_KEY);
+    const legacyBody = localStorage.getItem(BODY_KEY);
+    const legacySource = localStorage.getItem(LEGACY_SOURCE_KEY);
+    if (savedHtml || legacyTitle !== null || legacyBody !== null || legacySource) {
+      articleEl.innerHTML = loadArticleHtml();
+    }
+    normalizeArticle();
+    persistArticle();
+
+    const savedFont = Number(localStorage.getItem(FONT_KEY));
+    const initialFont = Number.isFinite(savedFont) && savedFont >= 12 && savedFont <= 28
+      ? savedFont
+      : 17;
+    applyFontSize(initialFont);
+
+    const savedTheme = localStorage.getItem(THEME_KEY);
+    applyTheme(savedTheme === 'light' || savedTheme === 'dark' ? savedTheme : 'system');
+
+    applyBold(localStorage.getItem(BOLD_KEY) === '1');
+
+    articleEl.addEventListener('input', persistArticle);
+
+    articleEl.addEventListener('paste', (e) => {
+      const clip = e.clipboardData;
+      if (!clip) return;
+      e.preventDefault();
+
+      const insertHtml = plainTextToHtml(clip.getData('text/plain') ?? '');
+      if (!insertHtml) return;
+
+      insertHtmlAtSelection(insertHtml);
+      normalizeArticle();
+      persistArticle();
+    });
+
+    fontSlider.addEventListener('input', () => {
+      const px = Number(fontSlider.value);
+      applyFontSize(px);
+      normalizeArticle();
+      localStorage.setItem(FONT_KEY, String(px));
+      localStorage.setItem(HTML_KEY, articleEl.innerHTML);
+    });
+
+    boldToggle.addEventListener('change', () => {
+      const on = boldToggle.checked;
+      applyBold(on);
+      localStorage.setItem(BOLD_KEY, on ? '1' : '0');
+    });
+
+    themeSelect.addEventListener('change', () => {
+      const mode = themeSelect.value;
+      applyTheme(mode);
+      if (mode === 'system') {
+        localStorage.removeItem(THEME_KEY);
+      } else {
+        localStorage.setItem(THEME_KEY, mode);
+      }
+    });
+  </script>
+</body>
+</html>

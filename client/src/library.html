@@ -1,0 +1,1112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title data-title-zh="我的 Info Highlight 收藏列表" data-title-en="My Info Highlight library">My Info Highlight library</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        (function () {
+            var q = new URLSearchParams(location.search).get('lang');
+            var s = null;
+            try { s = localStorage.getItem('app_language'); } catch (e) {}
+            var pref = q === 'zh' || q === 'en' ? q : s === 'zh' || s === 'en' ? s : (navigator.language || '');
+            var lang = /^zh/i.test(pref || '') ? 'zh' : 'en';
+            document.documentElement.lang = lang;
+            var titleEl = document.querySelector('title');
+            if (titleEl) {
+                var titled = titleEl.getAttribute('data-title-' + lang);
+                if (titled) document.title = titled;
+            }
+            var desc = document.querySelector('meta[name="description"]');
+            if (desc) {
+                var d = desc.getAttribute('data-desc-' + lang);
+                if (d) desc.setAttribute('content', d);
+            }
+        })();
+    </script>
+    <style>
+        :root {
+            color-scheme: light dark;
+            --fg: #222;
+            --muted: #666;
+            --bg: #fff;
+            --card: #f6f6f6;
+            --border: #ddd;
+            --accent: #e74c3c;
+            --danger-link: #c62828;
+            --link: #06c;
+            --err: #a33;
+            --text-color: var(--fg);
+            --bg-color: var(--bg);
+            --border-color: var(--border);
+            --hover-bg-color: color-mix(in srgb, var(--fg) 8%, var(--card));
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --fg: #e8e8e8;
+                --muted: #aaa;
+                --bg: #1a1a1a;
+                --card: #2a2a2a;
+                --border: #444;
+                --link: #8ab4f8;
+                --danger-link: #e57373;
+                --err: #f28b82;
+            }
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0 auto;
+            max-width: 720px;
+            padding: 16px;
+            font: 16px/1.5 -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif;
+            color: var(--fg);
+            background: var(--bg);
+        }
+        h1 { font-size: 1.35rem; margin: 0 0 0.4em; }
+        .lead { color: var(--muted); margin: 0 0 1.2em; font-size: 0.95rem; }
+        label { display: block; font-weight: 600; margin-bottom: 0.35em; }
+        .row { display: flex; gap: 8px; margin-top: 0.6em; flex-wrap: wrap; }
+        .list-toolbar {
+            align-items: center;
+            margin-bottom: 0.8em;
+        }
+        .list-toolbar-end {
+            display: flex;
+            gap: 0.65em;
+            flex-wrap: wrap;
+            margin-left: auto;
+        }
+        button.toolbar-link {
+            margin: 0;
+            padding: 0;
+            border: none;
+            background: none;
+            color: var(--link);
+            font: inherit;
+            font-size: 0.95rem;
+            cursor: pointer;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
+        button.toolbar-link.danger {
+            color: var(--danger-link);
+        }
+        button {
+            font: inherit;
+            padding: 0.5em 1em;
+            cursor: pointer;
+            color: var(--fg);
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+        button.primary {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+        }
+        button:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+        button.toolbar-link:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+        .err { color: var(--err); margin: 0.8em 0 0; }
+        .ok { color: var(--muted); margin: 0.8em 0 0; font-size: 0.9rem; }
+        #auth { margin-bottom: 1.5em; }
+        .auth-hint {
+            margin: 0;
+            color: var(--muted);
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+        .list-share-hint {
+            margin: 0 0 0.85em;
+            color: var(--muted);
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        .list-share-hint[hidden] { display: none !important; }
+        .auth-bar {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.35em 0.65em;
+            margin: 0 0 0.85em;
+            padding: 0.55em 0.75em;
+            font-size: 0.9rem;
+            color: var(--muted);
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+        }
+        .auth-bar[hidden] { display: none !important; }
+        .key-preview {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 0.88em;
+            color: var(--fg);
+        }
+        button.auth-link {
+            margin: 0;
+            padding: 0;
+            border: none;
+            background: none;
+            color: var(--link);
+            font: inherit;
+            font-size: inherit;
+            cursor: pointer;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
+        #listView { display: none; }
+        body[data-mode="list"] #listView { display: block; }
+        body[data-mode="list"] #auth .auth-hint { display: none; }
+        .item-row {
+            display: flex;
+            align-items: center;
+            margin: 0 0 0.55em;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .item-row.menu-open .demo-item-menu-btn { opacity: 1; }
+        .item-row.deleting {
+            opacity: 0.45;
+            pointer-events: none;
+        }
+        a.item {
+            display: block;
+            flex: 1;
+            min-width: 0;
+            position: relative;
+            text-align: left;
+            padding: 0.85em 1em;
+            margin: 0;
+            background: transparent;
+            border: none;
+            border-radius: 0;
+            color: inherit;
+            text-decoration: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        button.demo-item-menu-btn {
+            flex-shrink: 0;
+            margin: 0;
+            padding: 0 10px;
+            min-width: 44px;
+            min-height: 44px;
+            border: none;
+            border-radius: 0;
+            background: transparent;
+            color: var(--text-color);
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+            transition: opacity 0.2s;
+            opacity: 0;
+        }
+        body.touch button.demo-item-menu-btn { opacity: 0.4; }
+        .item-row:hover button.demo-item-menu-btn { opacity: 1; }
+        .demo-item-menu {
+            position: fixed;
+            z-index: 1000;
+            min-width: 9.5em;
+            padding: 0.35em 0;
+            font: inherit;
+            line-height: 1.5;
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+        .demo-item-menu .menu-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5em;
+            padding: 0.55em 1em;
+            cursor: pointer;
+            color: var(--text-color);
+            font-size: inherit;
+            transition: background 0.2s;
+        }
+        .demo-item-menu .menu-item:hover {
+            background: var(--hover-bg-color);
+        }
+        .demo-item-menu .menu-item-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 1em;
+            height: 1em;
+            flex-shrink: 0;
+            opacity: 0.75;
+        }
+        .demo-item-menu .menu-item-icon svg {
+            width: 1em;
+            height: 1em;
+            display: block;
+        }
+        .list-prefs {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.5em 1.35em;
+            margin: 0 0 0.85em;
+        }
+        .pref-row {
+            display: flex;
+            align-items: center;
+            gap: 0.45em;
+            margin: 0;
+            font-weight: normal;
+            font-size: 0.95rem;
+        }
+        .pref-row input { margin: 0; }
+        .item .t {
+            position: relative;
+            font-weight: 600;
+            margin-bottom: 0.2em;
+        }
+        .item-row:not(.unread) .item .t {
+            font-weight: 500;
+            color: color-mix(in srgb, var(--fg) 72%, var(--muted));
+        }
+        /* 蓝点在标题左侧 padding 缝里，不占流式宽度，避免未读时标题右移 */
+        .item .t .read-dot {
+            position: absolute;
+            right: 100%;
+            margin-right: 0.2em;
+            top: 0.42em;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--link);
+            pointer-events: none;
+        }
+        .item-row:not(.unread) .read-dot { display: none; }
+        .item .m,
+        .item .m-url {
+            font-size: 0.85rem;
+            color: var(--muted);
+        }
+        .item .m-url {
+            margin-top: 0.2em;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        #brand a, #auth a { color: var(--link); }
+        .empty { color: var(--muted); padding: 1.5em 0; }
+        html[lang="zh"] [lang="en"], html[lang="en"] [lang="zh"] { display: none; }
+    </style>
+</head>
+<body data-mode="idle">
+    <div id="brand">
+        <h1 lang="zh">我的 Info Highlight 收藏列表</h1>
+        <h1 lang="en">My Info Highlight library</h1>
+        <p class="lead" lang="zh">用电脑插件“收藏到手机”存下的高亮文章，在这里打开看。<span class="lead-limit"></span>请及时清空已读。</p>
+        <p class="lead" lang="en">Highlighted articles saved with <strong>Save to phone</strong> on the desktop extension—read them here.<span class="lead-limit"></span>Clear finished items regularly.</p>
+    </div>
+
+    <section id="auth">
+        <p class="auth-hint" lang="zh">在电脑插件“收藏到手机”弹窗里复制链接，用手机浏览器打开即可登录。</p>
+        <p class="auth-hint" lang="en">Copy the link from the <strong>Save to phone</strong> dialog in the desktop extension and open it in your phone browser to sign in.</p>
+        <div class="auth-bar" id="authBar" hidden>
+            <span lang="zh">已登录</span><span lang="en">Signed in</span>
+            <code class="key-preview" id="keyPreview"></code>
+            <button type="button" class="auth-link" id="btnSignOut"><span lang="zh">退出</span><span lang="en">Sign out</span></button>
+        </div>
+        <p class="list-share-hint" hidden lang="zh">请勿对外分享<strong>收藏列表</strong>（链接含你的登录信息）。打开某篇文章后，将<strong>该页链接</strong>分享给他人是OK的。</p>
+        <p class="list-share-hint" hidden lang="en">Do not share your <strong>library list</strong> publicly (the link includes your sign-in). After opening an article, sharing <strong>that page’s link</strong> with others is OK.</p>
+        <p class="err" id="authErr" hidden></p>
+        <p class="ok" id="authOk" hidden></p>
+    </section>
+
+    <section id="listView">
+        <div class="list-prefs">
+            <label class="pref-row">
+                <input type="checkbox" id="openNewTab" checked>
+                <span lang="zh">在新标签页中打开</span><span lang="en">Open in a new tab</span>
+            </label>
+            <label class="pref-row">
+                <input type="checkbox" id="listSortDesc">
+                <span lang="zh">按收藏时间倒序</span><span lang="en">Newest first</span>
+            </label>
+        </div>
+        <div class="row list-toolbar">
+            <button type="button" class="toolbar-link" id="btnRefresh"><span lang="zh">刷新列表</span><span lang="en">Refresh</span></button>
+            <div class="list-toolbar-end">
+                <button type="button" class="toolbar-link danger" id="btnClearRead" disabled><span lang="zh">清空已读</span><span lang="en">Clear read</span></button>
+                <button type="button" class="toolbar-link danger" id="btnClearAll" disabled><span lang="zh">清空收藏</span><span lang="en">Clear all</span></button>
+            </div>
+        </div>
+        <div id="list"></div>
+    </section>
+
+    <script>
+(function () {
+  const KEY_STORAGE = 'ih_library_api_key';
+  const OPEN_NEW_TAB_KEY = 'ih_library_open_new_tab';
+  const LIST_SORT_DESC_KEY = 'ih_library_list_sort_desc';
+  const LIST_SORT_ASC_KEY = 'ih_library_list_sort_asc';
+  let libraryListCache = [];
+  /** 本地已读：itemId → 打开成功时间戳（毫秒） */
+  const READ_AT_STORAGE = 'ih_library_read_at';
+  const API_KEY_RE = /^ih_[A-Za-z0-9_-]{43}$/;
+  function pageLang() {
+    return document.documentElement.lang === 'zh' ? 'zh' : 'en';
+  }
+
+  const MSG = {
+    needKey: {
+      zh: '请用插件弹窗里的链接打开本页',
+      en: 'Open this page using the link from the extension’s Save to phone dialog',
+    },
+    invalidKey: { zh: '链接里的 API Key 无效', en: 'The API key in this link is invalid' },
+    signedOut: { zh: '已退出', en: 'Signed out' },
+    loading: { zh: '正在加载…', en: 'Loading…' },
+    emptyList: {
+      zh: '还没有收藏。用电脑插件右键菜单「收藏到手机」存一篇试试。',
+      en: 'Nothing saved yet. Try Save to phone from the extension’s context menu on a page.',
+    },
+    noTitle: { zh: '(无标题)', en: '(Untitled)' },
+    noReadItems: { zh: '没有已读收藏', en: 'No read items' },
+    confirmClearRead: {
+      zh: '确定删除 {n} 篇已读收藏？删除后无法恢复。',
+      en: 'Delete {n} read item(s)? This cannot be undone.',
+    },
+    confirmClearAll: {
+      zh: '确定清空全部收藏？删除后无法恢复。',
+      en: 'Clear your entire library? This cannot be undone.',
+    },
+    confirmDelete: {
+      zh: '确定删除「{title}」？删除后无法恢复。',
+      en: 'Delete “{title}”? This cannot be undone.',
+    },
+    markUnread: { zh: '标为未读', en: 'Mark unread' },
+    markRead: { zh: '标为已读', en: 'Mark read' },
+    openOrigin: { zh: '打开原网页', en: 'Open original page' },
+    deleteItem: { zh: '删除', en: 'Delete' },
+    more: { zh: '更多', en: 'More' },
+    libraryLimitKnown: {
+      zh: '当前账号最多可保存 {max} 篇。',
+      en: 'Your account can save up to {max} items.',
+    },
+  };
+
+  /** 门面 GET /v1/library 的 maxItems；未登录或未加载时为 null */
+  let libraryMaxItems = null;
+
+  function applyLibraryLeadLimit(maxItems) {
+    libraryMaxItems = Number.isInteger(maxItems) && maxItems > 0 ? maxItems : null;
+    for (const el of document.querySelectorAll('.lead-limit')) {
+      if (!libraryMaxItems) {
+        el.textContent = '';
+        continue;
+      }
+      const lang = el.closest('[lang]')?.getAttribute('lang') === 'zh' ? 'zh' : 'en';
+      const row = MSG.libraryLimitKnown;
+      let s = (row && row[lang]) || (row && row.en) || '';
+      s = s.split('{max}').join(String(libraryMaxItems));
+      el.textContent = ' ' + s + ' ';
+    }
+  }
+
+  function tr(key, vars) {
+    const row = MSG[key];
+    let s = (row && row[pageLang()]) || (row && row.en) || String(key);
+    if (vars) {
+      for (const [k, v] of Object.entries(vars)) s = s.split('{' + k + '}').join(String(v));
+    }
+    return s;
+  }
+
+  function documentTitle() {
+    const h1 = document.querySelector('h1[lang="' + pageLang() + '"]');
+    return h1 ? h1.textContent.trim() : (pageLang() === 'zh' ? '我的 Info Highlight 收藏列表' : 'My Info Highlight library');
+  }
+  const UNREAD_MENU_ICON = '<svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="3.25" fill="currentColor"/></svg>';
+  const READ_MENU_ICON = '<svg viewBox="0 0 12 12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.5l2.5 2.5 4.5-5"/></svg>';
+  const DELETE_ICON = '<svg viewBox="0 0 12 12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l6 6M9 3l-6 6"/></svg>';
+  const ORIGIN_ICON = '<svg viewBox="0 0 12 12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5H3.5a1 1 0 0 0-1 1V8.5a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1V6"/><path d="M8 2.5h1.5V4"/><path d="M5.25 6.75 9.5 2.5"/></svg>';
+
+  if (window.matchMedia('(hover: none), (pointer: coarse)').matches) {
+    document.body.classList.add('touch');
+  }
+
+  let openItemMenu = null;
+
+  /** meta / ?api= / 同源。?api= 优先于 meta，便于沙箱门面调试与扩展预览。 */
+  function normalizeApiBase(url) {
+    const s = String(url || '').trim();
+    if (!s) return '';
+    return s.replace(/\/+$/, '');
+  }
+
+  function apiBase() {
+    const fromParam = new URLSearchParams(location.search).get('api');
+    if (fromParam && fromParam.trim()) return normalizeApiBase(fromParam);
+    const meta = document.querySelector('meta[name="inforadar-api-base"]');
+    const fromMeta = meta && meta.getAttribute('content');
+    if (fromMeta && fromMeta.trim()) return normalizeApiBase(fromMeta);
+    return '';
+  }
+
+  function $(id) { return document.getElementById(id); }
+
+  function loadReadAtMap() {
+    try {
+      const raw = localStorage.getItem(READ_AT_STORAGE);
+      const o = raw ? JSON.parse(raw) : null;
+      if (!o || typeof o !== 'object' || Array.isArray(o)) return {};
+      return o;
+    } catch {
+      return {};
+    }
+  }
+
+  function saveReadAtMap(map) {
+    localStorage.setItem(READ_AT_STORAGE, JSON.stringify(map));
+  }
+
+  function isItemRead(id, map) {
+    const t = Number((map || loadReadAtMap())[id]);
+    return Number.isFinite(t) && t > 0;
+  }
+
+  function markItemRead(id) {
+    if (!id) return;
+    const map = loadReadAtMap();
+    map[id] = Date.now();
+    saveReadAtMap(map);
+  }
+
+  function forgetItemRead(id) {
+    if (!id) return;
+    const map = loadReadAtMap();
+    if (!(id in map)) return;
+    delete map[id];
+    saveReadAtMap(map);
+  }
+
+  function pruneReadAtMap(validIds) {
+    const ids = new Set(validIds);
+    const map = loadReadAtMap();
+    let changed = false;
+    for (const id of Object.keys(map)) {
+      if (!ids.has(id)) {
+        delete map[id];
+        changed = true;
+      }
+    }
+    if (changed) saveReadAtMap(map);
+    return map;
+  }
+
+  function listSummaryText(total, unreadCount) {
+    const n = Number(total) || 0;
+    const unread = Number(unreadCount) || 0;
+    if (!n && !libraryMaxItems) return '';
+    if (pageLang() === 'zh') {
+      let s = unread + ' 篇未读，共 ' + n + ' 篇';
+      if (libraryMaxItems) s += '。上限 ' + libraryMaxItems + ' 篇';
+      return s;
+    }
+    const u = unread === 1 ? '1 unread' : unread + ' unread';
+    const base = n === 1 ? '1 item' : n + ' items';
+    let s = u + ', ' + base;
+    if (libraryMaxItems) {
+      s += '. Max ' + (libraryMaxItems === 1 ? '1 item' : libraryMaxItems + ' items');
+    }
+    return s;
+  }
+
+  function refreshListSummary() {
+    const rows = document.querySelectorAll('#list .item-row');
+    const total = rows.length;
+    if (total) {
+      const unread = document.querySelectorAll('#list .item-row.unread').length;
+      showOk(listSummaryText(total, unread));
+    }
+    const readAt = loadReadAtMap();
+    const items = [];
+    for (const row of rows) {
+      const id = row.dataset.itemId || itemIdFromItemLink(row.querySelector('a.item'));
+      if (id) items.push({ id });
+    }
+    updateListBulkButtons(items, readAt);
+  }
+
+  function setItemRowUnread(row, unread) {
+    row.classList.toggle('unread', unread);
+  }
+
+  function itemIdFromItemLink(a) {
+    const row = a && a.closest('.item-row');
+    return (row && row.dataset.itemId) || '';
+  }
+
+  function syncListReadFromStorage() {
+    if (document.body.dataset.mode !== 'list') return;
+    const readAt = loadReadAtMap();
+    for (const row of document.querySelectorAll('#list .item-row')) {
+      const id = row.dataset.itemId || itemIdFromItemLink(row.querySelector('a.item'));
+      if (!id) continue;
+      setItemRowUnread(row, !isItemRead(id, readAt));
+    }
+    refreshListSummary();
+  }
+
+  function markLibraryItemUnread(item, row) {
+    if (!item || !item.id || !row) return;
+    if (!isItemRead(item.id)) return;
+    forgetItemRead(item.id);
+    setItemRowUnread(row, true);
+    refreshListSummary();
+  }
+
+  function markLibraryItemRead(item, row) {
+    if (!item || !item.id || !row) return;
+    if (isItemRead(item.id)) return;
+    markItemRead(item.id);
+    setItemRowUnread(row, false);
+    refreshListSummary();
+  }
+
+  function showErr(msg) {
+    const el = $('authErr');
+    el.textContent = msg || '';
+    el.hidden = !msg;
+    $('authOk').hidden = true;
+  }
+
+  function showOk(msg) {
+    const el = $('authOk');
+    el.textContent = msg || '';
+    el.hidden = !msg;
+    $('authErr').hidden = true;
+  }
+
+  function abbreviateKey(key) {
+    const s = String(key || '');
+    if (s.length <= 18) return s;
+    return s.slice(0, 12) + '…' + s.slice(-4);
+  }
+
+  function getStoredKey() {
+    return (localStorage.getItem(KEY_STORAGE) || '').trim();
+  }
+
+  function setStoredKey(key) {
+    localStorage.setItem(KEY_STORAGE, key);
+    updateKeyUI();
+  }
+
+  function clearStoredKey() {
+    localStorage.removeItem(KEY_STORAGE);
+    updateKeyUI();
+  }
+
+  function currentKey() {
+    return getStoredKey();
+  }
+
+  function updateKeyUI() {
+    const valid = API_KEY_RE.test(currentKey());
+    $('authBar').hidden = !valid;
+    for (const el of document.querySelectorAll('.auth-hint')) el.hidden = valid;
+    for (const el of document.querySelectorAll('.list-share-hint')) el.hidden = !valid;
+    if (valid) $('keyPreview').textContent = abbreviateKey(currentKey());
+  }
+
+  async function api(path, key, opts) {
+    const method = (opts && opts.method) || 'GET';
+    const headers = { Authorization: 'Bearer ' + key };
+    const init = { method, headers };
+    if (opts && opts.body !== undefined) {
+      headers['Content-Type'] = 'application/json';
+      init.body = typeof opts.body === 'string' ? opts.body : JSON.stringify(opts.body);
+    }
+    const res = await fetch(apiBase() + path, init);
+    let data = null;
+    try { data = await res.json(); } catch { /* ignore */ }
+    if (!res.ok) {
+      const err = (data && (data.error || data.message)) || ('HTTP ' + res.status);
+      throw new Error(err);
+    }
+    return data;
+  }
+
+  function fmtTime(ms) {
+    const n = Number(ms);
+    if (!Number.isFinite(n) || n <= 0) return '';
+    try {
+      const loc = pageLang() === 'zh' ? 'zh-CN' : 'en-US';
+      return new Date(n).toLocaleString(loc, { hour12: false });
+    } catch {
+      return String(n);
+    }
+  }
+
+  function fmtBytes(n) {
+    const b = Number(n);
+    if (!Number.isFinite(b) || b < 0) return '';
+    if (b < 1024) return Math.round(b) + ' B';
+    const kb = b / 1024;
+    if (kb < 1024) return (kb < 10 ? kb.toFixed(1) : String(Math.round(kb))) + ' KB';
+    const mb = kb / 1024;
+    return (mb < 10 ? mb.toFixed(1) : String(Math.round(mb))) + ' MB';
+  }
+
+  /** 列表页当前路径（/library 或 /library.html） */
+  function listPagePath() {
+    const p = location.pathname || '/library';
+    if (p.startsWith('/library/')) return '/library';
+    return p;
+  }
+
+  function libraryUrlParams() {
+    const fromUrl = new URLSearchParams(location.search);
+    const q = new URLSearchParams();
+    const api = fromUrl.get('api');
+    if (api) q.set('api', api);
+    const key = (fromUrl.get('key') || getStoredKey()).trim();
+    if (API_KEY_RE.test(key)) q.set('key', key);
+    return q;
+  }
+
+  /** 单篇 /library/<cap>。正式站同源由 Worker 路由；沙箱 pages.dev 等无该路由时指向 apiBase。 */
+  function itemHref(c) {
+    const cap = String(c || '').trim();
+    const base = location.hostname === 'info-lens.app' ? '' : apiBase();
+    return base + '/library/' + encodeURIComponent(cap);
+  }
+
+  function openInNewTab() {
+    const el = $('openNewTab');
+    return el ? el.checked : true;
+  }
+
+  function readListSortDescStored() {
+    const saved = localStorage.getItem(LIST_SORT_DESC_KEY);
+    if (saved === '1' || saved === '0') return saved === '1';
+    const legacyAsc = localStorage.getItem(LIST_SORT_ASC_KEY);
+    if (legacyAsc === '1') return false;
+    if (legacyAsc === '0') return true;
+    return false;
+  }
+
+  function listSortDescending() {
+    const el = $('listSortDesc');
+    return el ? el.checked : false;
+  }
+
+  function sortLibraryItems(items) {
+    const asc = !listSortDescending();
+    return items.slice().sort((a, b) => {
+      const ta = Number(a.capturedAt) || 0;
+      const tb = Number(b.capturedAt) || 0;
+      if (ta !== tb) return asc ? ta - tb : tb - ta;
+      if (a.id === b.id) return 0;
+      return asc ? (a.id < b.id ? -1 : 1) : (a.id < b.id ? 1 : -1);
+    });
+  }
+
+  function renderLibraryList(items, readAt) {
+    const box = $('list');
+    box.innerHTML = '';
+    let unreadCount = 0;
+    const sorted = sortLibraryItems(items);
+    updateListBulkButtons(items, readAt);
+    if (!sorted.length) {
+      box.innerHTML = '<p class="empty">' + tr('emptyList') + '</p>';
+      return unreadCount;
+    }
+    for (const it of sorted) {
+      const unread = !isItemRead(it.id, readAt);
+      if (unread) unreadCount += 1;
+      const row = document.createElement('div');
+      row.className = 'item-row' + (unread ? ' unread' : '');
+      row.dataset.itemId = it.id;
+      const a = document.createElement('a');
+      a.className = 'item';
+      a.href = it.c ? itemHref(it.c) : '#';
+      a.innerHTML = '<div class="t"><span class="read-dot" aria-hidden="true"></span><span class="read-title"></span></div><div class="m"></div><div class="m-url"></div>';
+      a.querySelector('.read-title').textContent = it.title || tr('noTitle');
+      a.querySelector('.m').textContent = [fmtTime(it.capturedAt), fmtBytes(it.contentBytes)].filter(Boolean).join(' · ');
+      const urlEl = a.querySelector('.m-url');
+      if (it.sourceUrl) {
+        urlEl.textContent = it.sourceUrl;
+        urlEl.title = it.sourceUrl;
+      } else urlEl.remove();
+      applyItemLinkTarget(a);
+      a.addEventListener('click', () => {
+        if (it.id) markItemRead(it.id);
+      });
+      const menuBtn = document.createElement('button');
+      menuBtn.type = 'button';
+      menuBtn.className = 'demo-item-menu-btn';
+      menuBtn.title = tr('more');
+      menuBtn.setAttribute('aria-label', tr('more'));
+      menuBtn.textContent = '☰';
+      row.appendChild(a);
+      row.appendChild(menuBtn);
+      bindItemMenu(row, it);
+      box.appendChild(row);
+    }
+    return unreadCount;
+  }
+
+  function applyItemLinkTarget(a) {
+    if (openInNewTab()) {
+      a.target = '_blank';
+      a.rel = 'noopener';
+    } else {
+      a.removeAttribute('target');
+      a.removeAttribute('rel');
+    }
+  }
+
+  function isHttpSourceUrl(url) {
+    const u = String(url || '').trim();
+    return /^https?:\/\//i.test(u);
+  }
+
+  function openSourceUrl(url) {
+    if (!isHttpSourceUrl(url)) return;
+    window.open(url, '_blank', 'noopener');
+  }
+
+  function closeItemMenu() {
+    if (!openItemMenu) return;
+    const { menuEl, row, btn, onDocClick } = openItemMenu;
+    menuEl.remove();
+    row.classList.remove('menu-open');
+    btn.style.opacity = document.body.classList.contains('touch') ? '0.4' : '';
+    document.removeEventListener('click', onDocClick, true);
+    openItemMenu = null;
+  }
+
+  function openItemMenuAt(btn, row, item) {
+    closeItemMenu();
+    const rect = btn.getBoundingClientRect();
+    const spacing = 4;
+    const menuEl = document.createElement('div');
+    menuEl.className = 'demo-item-menu';
+    menuEl.style.visibility = 'hidden';
+    menuEl.style.left = '0';
+    menuEl.style.top = '0';
+
+    const readToggle = document.createElement('div');
+    readToggle.className = 'menu-item';
+    if (isItemRead(item.id)) {
+      readToggle.innerHTML = '<span class="menu-item-icon">' + UNREAD_MENU_ICON + '</span><span>' + tr('markUnread') + '</span>';
+      readToggle.addEventListener('click', (event) => {
+        event.stopPropagation();
+        closeItemMenu();
+        markLibraryItemUnread(item, row);
+      });
+    } else {
+      readToggle.innerHTML = '<span class="menu-item-icon">' + READ_MENU_ICON + '</span><span>' + tr('markRead') + '</span>';
+      readToggle.addEventListener('click', (event) => {
+        event.stopPropagation();
+        closeItemMenu();
+        markLibraryItemRead(item, row);
+      });
+    }
+    menuEl.appendChild(readToggle);
+
+    if (isHttpSourceUrl(item.sourceUrl)) {
+      const originItem = document.createElement('div');
+      originItem.className = 'menu-item';
+      originItem.innerHTML = '<span class="menu-item-icon">' + ORIGIN_ICON + '</span><span>' + tr('openOrigin') + '</span>';
+      originItem.addEventListener('click', (event) => {
+        event.stopPropagation();
+        closeItemMenu();
+        openSourceUrl(item.sourceUrl);
+      });
+      menuEl.appendChild(originItem);
+    }
+
+    const menuItem = document.createElement('div');
+    menuItem.className = 'menu-item';
+    menuItem.innerHTML = '<span class="menu-item-icon">' + DELETE_ICON + '</span><span>' + tr('deleteItem') + '</span>';
+    menuItem.addEventListener('click', (event) => {
+      event.stopPropagation();
+      closeItemMenu();
+      void deleteLibraryItem(item, row);
+    });
+    menuEl.appendChild(menuItem);
+    document.body.appendChild(menuEl);
+    const menuWidth = menuEl.offsetWidth;
+    const menuHeight = menuEl.offsetHeight;
+    const margin = spacing;
+    let left = rect.right - menuWidth;
+    let top = rect.bottom + margin;
+    if (top + menuHeight > window.innerHeight - margin) {
+      top = rect.top - menuHeight - margin;
+    }
+    if (left < margin) left = rect.left;
+    if (left + menuWidth > window.innerWidth - margin) {
+      left = window.innerWidth - menuWidth - margin;
+    }
+    if (top < margin) top = margin;
+    if (top + menuHeight > window.innerHeight - margin) {
+      top = window.innerHeight - menuHeight - margin;
+    }
+    menuEl.style.left = left + 'px';
+    menuEl.style.top = top + 'px';
+    menuEl.style.visibility = '';
+
+    row.classList.add('menu-open');
+    btn.style.opacity = '1';
+
+    const onDocClick = (event) => {
+      const t = event.target;
+      if (menuEl.contains(t) || btn.contains(t)) return;
+      closeItemMenu();
+    };
+    openItemMenu = { menuEl, row, btn, onDocClick };
+    setTimeout(() => document.addEventListener('click', onDocClick, true), 0);
+  }
+
+  function bindItemMenu(row, item) {
+    const btn = row.querySelector('.demo-item-menu-btn');
+    if (!btn) return;
+    btn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      event.preventDefault();
+      if (openItemMenu && openItemMenu.btn === btn) {
+        closeItemMenu();
+        return;
+      }
+      openItemMenuAt(btn, row, item);
+    });
+    row.addEventListener('mouseenter', () => {
+      if (!row.classList.contains('menu-open')) btn.style.opacity = '0.6';
+    });
+    row.addEventListener('mouseleave', () => {
+      if (row.classList.contains('menu-open')) return;
+      if (document.body.classList.contains('touch')) btn.style.opacity = '0.4';
+      else btn.style.opacity = '0';
+    });
+  }
+
+  function updateListBulkButtons(items, readAt) {
+    const total = items.length;
+    const readCount = items.filter((it) => isItemRead(it.id, readAt)).length;
+    const clearAll = $('btnClearAll');
+    const clearRead = $('btnClearRead');
+    if (clearAll) clearAll.disabled = total === 0;
+    if (clearRead) clearRead.disabled = readCount === 0;
+  }
+
+  /** @param {string[]|null} itemIds null = 列表里全部行 */
+  function setLibraryRowsDeleting(itemIds, deleting) {
+    const all = itemIds == null;
+    const set = all ? null : new Set(itemIds);
+    for (const row of document.querySelectorAll('#list .item-row')) {
+      const id = row.dataset.itemId || '';
+      if (!all && !set.has(id)) continue;
+      row.classList.toggle('deleting', deleting);
+    }
+  }
+
+  async function clearReadLibrary() {
+    const key = currentKey();
+    if (!API_KEY_RE.test(key)) {
+      showErr(tr('needKey'));
+      return;
+    }
+    let readItems;
+    try {
+      const data = await api('/v1/library', key);
+      const items = (data && data.items) || [];
+      const readAt = loadReadAtMap();
+      readItems = items.filter((it) => isItemRead(it.id, readAt));
+      if (!readItems.length) {
+        showOk(tr('noReadItems'));
+        updateListBulkButtons(items, readAt);
+        return;
+      }
+    } catch (err) {
+      showErr(String(err && err.message || err));
+      return;
+    }
+    const n = readItems.length;
+    if (!confirm(tr('confirmClearRead', { n }))) return;
+    const ids = readItems.map((it) => it.id);
+    const btn = $('btnClearRead');
+    if (btn) btn.disabled = true;
+    setLibraryRowsDeleting(ids, true);
+    try {
+      await api('/v1/library', key, {
+        method: 'DELETE',
+        body: { ids },
+      });
+      for (const it of readItems) forgetItemRead(it.id);
+      await loadList({ quiet: true });
+    } catch (err) {
+      setLibraryRowsDeleting(ids, false);
+      showErr(String(err && err.message || err));
+      void loadList({ quiet: true });
+    }
+  }
+
+  async function clearAllLibrary() {
+    const key = currentKey();
+    if (!API_KEY_RE.test(key)) {
+      showErr(tr('needKey'));
+      return;
+    }
+    if (!confirm(tr('confirmClearAll'))) return;
+    const btn = $('btnClearAll');
+    if (btn) btn.disabled = true;
+    setLibraryRowsDeleting(null, true);
+    try {
+      await api('/v1/library', key, { method: 'DELETE' });
+      saveReadAtMap({});
+      await loadList({ quiet: true });
+    } catch (err) {
+      setLibraryRowsDeleting(null, false);
+      showErr(String(err && err.message || err));
+      void loadList({ quiet: true });
+    }
+  }
+
+  async function deleteLibraryItem(item, row) {
+    const title = (item && item.title) || tr('noTitle');
+    const short = title.length > 24 ? title.slice(0, 24) + '…' : title;
+    if (!confirm(tr('confirmDelete', { title: short }))) return;
+    if (row.classList.contains('deleting')) return;
+    const key = currentKey();
+    if (!API_KEY_RE.test(key)) {
+      showErr(tr('needKey'));
+      return;
+    }
+    closeItemMenu();
+    row.classList.add('deleting');
+    try {
+      await api('/v1/library/' + encodeURIComponent(item.id), key, { method: 'DELETE' });
+      forgetItemRead(item.id);
+      await loadList({ quiet: true });
+    } catch (err) {
+      row.classList.remove('deleting');
+      showErr(String(err && err.message || err));
+    }
+  }
+
+  function replaceLibraryUrl(params) {
+    const qs = params.toString();
+    const path = listPagePath();
+    history.replaceState(null, '', path + (qs ? '?' + qs : '') + location.hash);
+  }
+
+  /** ?key=ih_… 供手机一键打开；同步 localStorage，地址栏保留 key 便于收藏与清存储后恢复。 */
+  function syncKeyFromUrl() {
+    const raw = new URLSearchParams(location.search).get('key');
+    if (!raw) return false;
+    const key = raw.trim();
+    if (!API_KEY_RE.test(key)) {
+      showErr(tr('invalidKey'));
+      return false;
+    }
+    setStoredKey(key);
+    return true;
+  }
+
+  function setMode(mode) {
+    document.body.dataset.mode = mode;
+    document.title = documentTitle();
+    updateKeyUI();
+  }
+
+  function refreshListFromServer() {
+    if (document.body.dataset.mode !== 'list') return;
+    if (!API_KEY_RE.test(currentKey())) return;
+    void loadList({ quiet: true });
+  }
+
+  async function loadList(options) {
+    const quiet = options && options.quiet;
+    const key = currentKey();
+    if (!API_KEY_RE.test(key)) {
+      if (!quiet) showErr(tr('needKey'));
+      return;
+    }
+    if (!quiet) showOk(tr('loading'));
+    try {
+      const data = await api('/v1/library', key);
+      const items = (data && data.items) || [];
+      if (data && Number.isInteger(data.maxItems)) applyLibraryLeadLimit(data.maxItems);
+      libraryListCache = items;
+      const readAt = pruneReadAtMap(items.map((it) => it.id));
+      const unreadCount = renderLibraryList(items, readAt);
+      setMode('list');
+      showOk(listSummaryText(items.length, unreadCount));
+    } catch (err) {
+      showErr(String(err && err.message || err));
+    }
+  }
+
+  function enter() {
+    if (API_KEY_RE.test(currentKey())) void loadList();
+  }
+
+  const openNewTabEl = $('openNewTab');
+  if (openNewTabEl) {
+    const savedOpen = localStorage.getItem(OPEN_NEW_TAB_KEY);
+    openNewTabEl.checked = savedOpen !== '0';
+    openNewTabEl.addEventListener('change', () => {
+      localStorage.setItem(OPEN_NEW_TAB_KEY, openNewTabEl.checked ? '1' : '0');
+      for (const a of document.querySelectorAll('#list a.item')) applyItemLinkTarget(a);
+    });
+  }
+
+  const listSortDescEl = $('listSortDesc');
+  if (listSortDescEl) {
+    listSortDescEl.checked = readListSortDescStored();
+    listSortDescEl.addEventListener('change', () => {
+      localStorage.setItem(LIST_SORT_DESC_KEY, listSortDescEl.checked ? '1' : '0');
+      if (!libraryListCache.length) return;
+      const readAt = pruneReadAtMap(libraryListCache.map((it) => it.id));
+      const unreadCount = renderLibraryList(libraryListCache, readAt);
+      showOk(listSummaryText(libraryListCache.length, unreadCount));
+    });
+  }
+
+  $('btnRefresh').addEventListener('click', () => { void loadList(); });
+  $('btnClearRead').addEventListener('click', () => { void clearReadLibrary(); });
+  $('btnClearAll').addEventListener('click', () => { void clearAllLibrary(); });
+  $('btnSignOut').addEventListener('click', () => {
+    clearStoredKey();
+    const params = libraryUrlParams();
+    params.delete('key');
+    replaceLibraryUrl(params);
+    $('list').innerHTML = '';
+    libraryListCache = [];
+    applyLibraryLeadLimit(null);
+    setMode('idle');
+    showOk(tr('signedOut'));
+  });
+
+  window.addEventListener('pageshow', () => refreshListFromServer());
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') refreshListFromServer();
+  });
+  window.addEventListener('storage', (event) => {
+    if (event.key === READ_AT_STORAGE) syncListReadFromStorage();
+  });
+
+  applyLibraryLeadLimit(null);
+  updateKeyUI();
+  syncKeyFromUrl();
+  enter();
+})();
+    </script>
+</body>
+</html>

@@ -48,7 +48,7 @@ cd cf/facade && npm run test:api
 网站（首页 + health）：
 
 ```bash
-node scripts/check-site.mjs
+node scripts/dev/check-site.mjs
 ```
 
 插件所依赖的接口（同级别 3）：

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en" data-ih-i18n="1">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title data-i18n>Self-host backend</title>
+  <link rel="stylesheet" href="options-shell.css" />
+  <style>
+    body { margin: 0; }
+    main { max-width: 640px; margin: 0 auto; padding: 24px 20px 48px; }
+    h1 { font-size: 1.25rem; font-weight: 600; margin: 0 0 16px; }
+    p { margin: 0 0 12px; font-size: 15px; line-height: 1.45; }
+    a { color: #0A84FF; }
+    pre {
+      margin: 12px 0;
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: var(--group);
+      font-size: 13px;
+      line-height: 1.45;
+      overflow-x: auto;
+    }
+    .guide-star {
+      margin-top: 20px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1 data-i18n>Self-host backend</h1>
+    <p data-i18n>Backend repository:</p>
+    <p><a href="https://github.com/dqy08/InfoLens" target="_blank" rel="noopener noreferrer">https://github.com/dqy08/InfoLens</a></p>
+    <p data-i18n>In the repository root:</p>
+    <pre>pip install -r requirements.txt
+python run.py --no-facade-token</pre>
+    <p data-i18n>The service listens at http://127.0.0.1:5001 by default.</p>
+    <p class="guide-star" data-i18n-html>If this helped you, <a href="https://github.com/dqy08/InfoLens" target="_blank" rel="noopener noreferrer">leave a star</a> on the repo ❤️</p>
+  </main>
+  <script src="config.js"></script>
+  <script src="zh.js"></script>
+  <script src="options-i18n.js"></script>
+  <script src="i18n.js"></script>
+</body>
+</html>
