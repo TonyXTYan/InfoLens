@@ -160,6 +160,8 @@ def safari_manifest(manifest: dict, imports: list[str]) -> dict:
         out["optional_host_permissions"] = [o for o in out["optional_host_permissions"] if o != FILE_ORIGIN]
     for entry in out.get("web_accessible_resources", []):
         entry["matches"] = [m for m in entry.get("matches", []) if m != FILE_ORIGIN]
+    # Safari 总在新标签页开选项页，留着这个键打包器会报不支持
+    out.get("options_ui", {}).pop("open_in_tab", None)
     out.setdefault("browser_specific_settings", {})["safari"] = {"strict_min_version": SAFARI_MIN_VERSION}
     return out
 

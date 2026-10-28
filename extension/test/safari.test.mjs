@@ -94,6 +94,7 @@ test('Safari 构建：manifest 与包内文件对得上，且过得了打包校�
     assert.ok(!manifest.permissions.includes('offscreen'));
     assert.ok(!JSON.stringify(manifest).includes('file:'));
     assert.equal(manifest.browser_specific_settings.safari.strict_min_version, '17.0');
+    assert.deepEqual(manifest.options_ui, { page: 'options.html' });
     // 除 manifest 外 Chrome 原有文件都在
     for (const rel of ['local/offscreen.html', 'local/offscreen.js', 'vendor/transformers/transformers.js']) {
       assert.ok(existsSync(join(out, rel)), rel);
