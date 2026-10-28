@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
-"""Assemble a loadable MV3 extension into extension/dist/<name>."""
+"""Assemble a loadable MV3 extension into extension/dist/<name> (Safari: <name>-safari)."""
 
 from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
+from copy import deepcopy
 from pathlib import Path
 
 EXTENSIONS = Path(__file__).resolve().parents[1]
 SHARED = EXTENSIONS / "shared"
+SAFARI = EXTENSIONS / "safari"
+DIST = EXTENSIONS / "dist"
 LOCALES = "_locales"  # 由 merge_locales 独占产出，不走通用拷贝
 FLATTEN = "page/"  # 注入宿主页的脚本平铺到包根，迁就 background.js 里 CONTENT_JS 的路径
 SKIP_DIRS = {LOCALES, "dist", "e2e", "local-samples", "node_modules", "test"}
@@ -127,9 +131,55 @@ def write_config(name: str, source: Path, output: Path, release: bool) -> None:
     print("build: config.js <- config.js")
 
 
-def build(name: str, release: bool) -> Path:
+SAFARI_ENV = "safari/background-env.js"
+# executeScript 结果按 InjectionResult（results[0].result）返回从 Safari 17 起
+SAFARI_MIN_VERSION = "17.0"
+# Safari 没有的 API；本机引擎的藏页由 SAFARI_ENV 在背景页里用 iframe 代替
+SAFARI_DROP_PERMISSIONS = {"offscreen"}
+# Safari 扩展碰不到 file:，也没有「允许访问文件网址」开关
+FILE_ORIGIN = "file:///*"
+IMPORT_LINE = re.compile(r"^importScripts\('([^']+)'\);$", re.MULTILINE)
+
+
+def background_imports(worker: Path) -> list[str]:
+    """SW 顶层 importScripts 引的脚本，按出现顺序。不是整行字面量的写法无法静态展开，直接报错。"""
+    text = worker.read_text(encoding="utf-8")
+    found = IMPORT_LINE.findall(text)
+    if len(found) != text.count("importScripts("):
+        raise SystemExit(f"build: {worker.name} 有非整行字面量的 importScripts，Safari 版无法展开成 background.scripts")
+    return found
+
+
+def safari_manifest(manifest: dict, imports: list[str]) -> dict:
+    """Chrome manifest → Safari：SW 换成带 DOM 的背景页脚本表（垫片在最前），去掉 Safari 没有的权限与 file:。"""
+    out = deepcopy(manifest)
+    worker = out["background"]["service_worker"]
+    out["background"] = {"scripts": [SAFARI_ENV, *imports, worker]}
+    out["permissions"] = [p for p in out.get("permissions", []) if p not in SAFARI_DROP_PERMISSIONS]
+    if "optional_host_permissions" in out:
+        out["optional_host_permissions"] = [o for o in out["optional_host_permissions"] if o != FILE_ORIGIN]
+    for entry in out.get("web_accessible_resources", []):
+        entry["matches"] = [m for m in entry.get("matches", []) if m != FILE_ORIGIN]
+    out.setdefault("browser_specific_settings", {})["safari"] = {"strict_min_version": SAFARI_MIN_VERSION}
+    return out
+
+
+def apply_safari(output: Path) -> None:
+    path = output / "manifest.json"
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    imports = background_imports(output / manifest["background"]["service_worker"])
+    copy(SAFARI / "background-env.js", output / SAFARI_ENV)
+    manifest = safari_manifest(manifest, imports)
+    missing = [rel for rel in manifest["background"]["scripts"] if not (output / rel).is_file()]
+    if missing:
+        raise SystemExit(f"build: Safari background.scripts 不在包内：{', '.join(missing)}")
+    path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(f"build: manifest.json <- Safari（background.scripts {len(manifest['background']['scripts'])} 个）")
+
+
+def build(name: str, release: bool, target: str = "chrome", dist: Path = DIST) -> Path:
     source = EXTENSIONS / name
-    output = EXTENSIONS / "dist" / name
+    output = dist / (name if target == "chrome" else f"{name}-{target}")
     shutil.rmtree(output, ignore_errors=True)
     shared = shared_payload()
     packaged = set(shared.values())
@@ -146,6 +196,8 @@ def build(name: str, release: bool) -> Path:
     copy_info_highlight_transformers(source, output)
     # 上架写空配置，不带本地 config.js。本地构建有这份才拷进去，没有也写空的。
     write_config(name, source, output, release)
+    if target == "safari":
+        apply_safari(output)
     print(output)
     return output
 
@@ -160,6 +212,11 @@ if __name__ == "__main__":
         "--release", action="store_true",
         help="上架构建：写入空 config.js，不带本地调试配置",
     )
+    parser.add_argument(
+        "--target", choices=("chrome", "safari"), default="chrome",
+        help="safari：产出 dist/<name>-safari（Safari 背景页 + 藏页垫片）",
+    )
+    parser.add_argument("--dist", type=Path, default=DIST, help="产物根目录（测试用）")
     args = parser.parse_args()
     for name in ([args.name] if args.name else extension_names()):
-        build(name, args.release)
+        build(name, args.release, args.target, args.dist)

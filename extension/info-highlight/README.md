@@ -35,6 +35,34 @@ PDF 与 `file:` 不进这条路。名单在选项页 Auto analyze 里增删（�
 
 本地调试改 gitignore 的 `config.js`（例如 `modalDebug: true`，或 `apiBase: 'https://…'` 指向沙箱门面），再构建。没有这份就用空配置。上架构建带 `--release`，写入空配置，不带本地这份。
 
+## Safari (macOS)
+
+Same source, separate build. `--target safari` writes `extension/dist/info-highlight-safari/`; the Chrome build is unchanged.
+
+```bash
+python3 extension/scripts/build_extension.py info-highlight --target safari
+```
+
+**Try it without Xcode (recent Safari, e.g. 26):** Safari → Settings → Developer → tick "Allow unsigned extensions" (resets when Safari quits) → "Add Temporary Extension…" → pick `extension/dist/info-highlight-safari/`. Safari drops temporary extensions after 24 h or on quit.
+
+**Ship it:** Safari only installs extensions bundled in an app.
+- On a Mac with Xcode, run `./extension/scripts/safari_xcode.sh --bundle-identifier com.you.InfoHighlight`. It generates `extension/dist/safari-xcode/info-highlight/`; build and run the macOS scheme there. The project references the build folder, so later changes only need this script again (or the build command) plus Build in Xcode.
+- Without a Mac, App Store Connect's web packager takes the zip from `./pack-safari.sh` (`extension/dist/info-highlight-safari-v<version>.zip`).
+
+What the Safari build changes (everything else is the Chrome code as-is):
+- **Background:** Safari runs it as a background page, not a service worker. `background.scripts` is `safari/background-env.js`, then every `importScripts('…');` line of `background.js` in order, then `background.js`. Only whole-line string-literal `importScripts` is allowed; the build fails otherwise.
+- **On-device engine:** Safari has no `chrome.offscreen`. `safari/background-env.js` mounts `local/offscreen.html` as an iframe in the background page instead. Messages are unchanged, and removing the iframe frees the model.
+- **Permissions:** drops `offscreen` and `file:///*`. `file:` pages count as protected, because Safari extensions can't read them.
+- **Versions:** minimum Safari 17. macOS only, since Safari on iOS has no `contextMenus` or `windows`.
+
+Not yet checked on a real Mac:
+- WebGPU with `shader-f16` inside the background-page iframe. If it is missing, Auto falls back to cloud, as on unsupported Chrome.
+- Whether Safari keeps the non-persistent background page alive through a long model download or analysis.
+- PDF tabs.
+- The "Always analyze" host-permission prompt.
+
+The "rate us" link still points to the Chrome Web Store.
+
 ## Test and package
 
 ```bash

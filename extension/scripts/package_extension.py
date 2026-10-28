@@ -23,9 +23,12 @@ def check_manifest(root: Path) -> None:
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     if manifest.get("manifest_version") != 3:
         raise SystemExit("pack: manifest_version must be 3")
-    worker = manifest.get("background", {}).get("service_worker")
-    if not isinstance(worker, str) or not (root / worker).is_file():
-        raise SystemExit("pack: background service worker missing")
+    background = manifest.get("background", {})
+    # Chrome 是 service_worker；Safari 构建是 background.scripts（build_extension.py --target safari）
+    entries = background["scripts"] if "scripts" in background else [background.get("service_worker")]
+    for rel in entries or [None]:
+        if not isinstance(rel, str) or not (root / rel).is_file():
+            raise SystemExit(f"pack: background script missing: {rel}")
     for section in ("icons",):
         for rel in manifest.get(section, {}).values():
             if not (root / rel).is_file():
