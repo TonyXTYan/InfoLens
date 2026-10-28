@@ -28,3 +28,22 @@ xcrun "$tool" "$out" \
   --project-location "$project" \
   --app-name "$app_name" \
   --swift --macos-only --no-open "$@"
+
+# 打包器按 App 名另拼 App 的 bundle ID（空格转连字符），与扩展的 <ID>.Extension 对不上时 Xcode 拒绝嵌入；以扩展的为准。
+# 部署目标默认是本机 SDK 版本，压到 Safari 17 能装的最老 macOS。
+pbxproj="$(find "$project" -name project.pbxproj | head -1)"
+python3 - "$pbxproj" <<'PY'
+import re, sys
+path = sys.argv[1]
+text = open(path, encoding="utf-8").read()
+ids = set(re.findall(r'PRODUCT_BUNDLE_IDENTIFIER = "?([^";]+)"?;', text))
+ext = [i for i in ids if i.endswith(".Extension")]
+if len(ext) != 1:
+    sys.exit(f"safari: 找不到唯一的扩展 bundle ID：{sorted(ids)}")
+app = ext[0].removesuffix(".Extension")
+for other in ids - {ext[0], app}:
+    text = re.sub(rf'PRODUCT_BUNDLE_IDENTIFIER = "?{re.escape(other)}"?;', f'PRODUCT_BUNDLE_IDENTIFIER = "{app}";', text)
+text = re.sub(r'MACOSX_DEPLOYMENT_TARGET = [0-9.]+;', 'MACOSX_DEPLOYMENT_TARGET = 12.0;', text)
+open(path, "w", encoding="utf-8").write(text)
+print(f"safari: App {app} / 扩展 {ext[0]}，macOS 12.0+")
+PY

@@ -23,11 +23,11 @@ jobs:
       # 仓库变量 SAFARI_BUNDLE_ID 可覆盖；上架时换成开发者账号里的 ID
       BUNDLE_ID: ${{ vars.SAFARI_BUNDLE_ID || format('io.github.{0}.InfoHighlight', github.repository_owner) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           lfs: true
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
@@ -56,7 +56,7 @@ jobs:
           ditto -c -k --keepParent "$app" "out/Info-Highlight-macOS.zip"
           cp extension/dist/info-highlight-safari-v*.zip out/
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: info-highlight-safari
           path: out/
