@@ -1,0 +1,62 @@
+name: Safari app (macOS)
+
+# 把 Info Highlight 的 Safari 构建包成 macOS App（App 内嵌扩展），产物在本次运行的 Artifacts 里。
+# 未签名（ad-hoc）：装上后要在 Safari 设置 → 开发者里勾「允许未签名的扩展」才会出现。
+on:
+  push:
+    paths:
+      - 'extension/**'
+      - '.github/workflows/safari-app.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: safari-app-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-26
+    env:
+      # 仓库变量 SAFARI_BUNDLE_ID 可覆盖；上架时换成开发者账号里的 ID
+      BUNDLE_ID: ${{ vars.SAFARI_BUNDLE_ID || format('io.github.{0}.InfoHighlight', github.repository_owner) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: extension/info-highlight/package-lock.json
+
+      - name: Install
+        run: cd extension/info-highlight && npm ci
+
+      - name: Test and pack Safari extension
+        run: ./extension/info-highlight/pack-safari.sh
+
+      - name: Generate Xcode project
+        run: ./extension/scripts/safari_xcode.sh info-highlight --bundle-identifier "$BUNDLE_ID" --no-prompt
+
+      - name: Build app (ad-hoc signed)
+        run: |
+          project="$(find extension/dist/safari-xcode/info-highlight -maxdepth 3 -name '*.xcodeproj' | head -1)"
+          xcodebuild -list -project "$project"
+          xcodebuild -project "$project" -scheme "Info Highlight" -configuration Release \
+            -derivedDataPath build/dd \
+            CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= \
+            build
+          app="$(find build/dd/Build/Products/Release -maxdepth 1 -name '*.app' | head -1)"
+          codesign --verify --deep --verbose=2 "$app"
+          mkdir -p out
+          ditto -c -k --keepParent "$app" "out/Info-Highlight-macOS.zip"
+          cp extension/dist/info-highlight-safari-v*.zip out/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: info-highlight-safari
+          path: out/

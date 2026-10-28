@@ -20,8 +20,11 @@ if [[ -d "$project" && " $* " != *" --force "* ]]; then
   exit 0
 fi
 app_name="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['extName']['message'])" "$out/_locales/en/messages.json")"
+# Xcode 26 起改名 packager，Xcode 16 及以前叫 converter，参数相同
+tool=safari-web-extension-packager
+xcrun --find "$tool" >/dev/null 2>&1 || tool=safari-web-extension-converter
 # iOS 版 Safari 没有 contextMenus / windows，背景页起不来，先只出 macOS
-xcrun safari-web-extension-packager "$out" \
+xcrun "$tool" "$out" \
   --project-location "$project" \
   --app-name "$app_name" \
   --swift --macos-only --no-open "$@"
