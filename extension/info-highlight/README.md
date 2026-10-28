@@ -47,7 +47,8 @@ python3 extension/scripts/build_extension.py info-highlight --target safari
 
 **Ship it:** Safari only installs extensions bundled in an app.
 - On a Mac with Xcode, run `./extension/scripts/safari_xcode.sh --bundle-identifier com.you.InfoHighlight`. It generates `extension/dist/safari-xcode/info-highlight/`; build and run the macOS scheme there. The project references the build folder, so later changes only need this script again (or the build command) plus Build in Xcode.
-- Without a Mac, App Store Connect's web packager takes the zip from `./pack-safari.sh` (`extension/dist/info-highlight-safari-v<version>.zip`).
+- Without a Mac: the `Safari app (macOS)` GitHub Actions workflow runs on every push touching `extension/` (or by hand). It builds an ad-hoc signed `Info Highlight.app` and uploads it as the run's `info-highlight-safari` artifact. After unzipping, run `xattr -dr com.apple.quarantine "Info Highlight.app"` and open the app once. Then turn on "Allow unsigned extensions" in Safari, which resets each time Safari quits. Set the repo variable `SAFARI_BUNDLE_ID` to change the bundle ID.
+- For the App Store, App Store Connect's web packager takes the zip from `./pack-safari.sh` (`extension/dist/info-highlight-safari-v<version>.zip`). This needs an Apple Developer account.
 
 What the Safari build changes (everything else is the Chrome code as-is):
 - **Background:** Safari runs it as a background page, not a service worker. `background.scripts` is `safari/background-env.js`, then every `importScripts('…');` line of `background.js` in order, then `background.js`. Only whole-line string-literal `importScripts` is allowed; the build fails otherwise.
