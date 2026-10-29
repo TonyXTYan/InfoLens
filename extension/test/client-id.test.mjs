@@ -190,3 +190,20 @@ test('IL_replaceApiKey：记下被换掉的那一把', async () => {
   assert.equal(store.ih_api_key, a);
   assert.equal(store.ih_api_key_prev, b);
 });
+
+test('用到 IL_API_BASE 的插件都引 api-base.js（e3894fa 起它只在那里定义）', () => {
+  const plugins = readdirSync(ROOT, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && existsSync(`${ROOT}${e.name}/manifest.json`))
+    .map((e) => e.name);
+  for (const name of plugins) {
+    const bg = readFileSync(`${ROOT}${name}/background.js`, 'utf8');
+    const imports = [...bg.matchAll(/^importScripts\('([^']+)'\);$/gm)].map((m) => m[1]);
+    // config.js 是构建时生成的，源码里没有
+    const files = imports.filter((rel) => rel !== 'api-base.js')
+      .map((rel) => [`${ROOT}${name}/${rel}`, `${ROOT}shared/${rel}`].find((f) => existsSync(f)))
+      .filter(Boolean);
+    const sources = [bg, ...files.map((f) => readFileSync(f, 'utf8'))];
+    if (!sources.some((src) => /\bIL_API_BASE\b/.test(src))) continue;
+    assert.ok(imports.includes('api-base.js'), `${name}/background.js 用到 IL_API_BASE 却没引 api-base.js`);
+  }
+});

@@ -8,6 +8,7 @@ importScripts('sw/restricted-url.js');
 importScripts('sw/action-dot.js');
 importScripts('options-attention.js');
 importScripts('options-catalog.js');
+importScripts('api-base.js');
 importScripts('sw/lifecycle-events.js');
 importScripts('open-about-feedback.js');
 importScripts('sw/client-id.js');
