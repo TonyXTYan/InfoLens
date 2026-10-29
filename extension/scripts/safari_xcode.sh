@@ -23,7 +23,7 @@ app_name="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['ext
 # Xcode 26 起改名 packager，Xcode 16 及以前叫 converter，参数相同
 tool=safari-web-extension-packager
 xcrun --find "$tool" >/dev/null 2>&1 || tool=safari-web-extension-converter
-# iOS 版 Safari 没有 contextMenus / windows，背景页起不来，先只出 macOS
+# iOS/iPadOS 暂缓（iOS 上没有 contextMenus、windows.create，背景页起不来），见 info-highlight/README.md 的 Safari 一节
 xcrun "$tool" "$out" \
   --project-location "$project" \
   --app-name "$app_name" \

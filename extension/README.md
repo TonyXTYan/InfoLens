@@ -9,7 +9,7 @@ python3 extension/scripts/build_extension.py
 
 不带参数会构建 info-highlight 和 semantic-highlight。只改其中一个时带上名字。
 
-Safari（macOS）另出一份：`--target safari` 产出 `dist/<name>-safari/`，Safari 专用垫片在 `safari/`。目前只有 Info Highlight 适配过，见 [其 README 的 Safari 一节](./info-highlight/README.md#safari-macos)。
+Safari（macOS）另出一份：`--target safari` 产出 `dist/<name>-safari/`，Safari 专用垫片在 `safari/`。目前只有 Info Highlight 适配过；GitHub Actions 的 `Safari app (macOS)` 工作流会出可直接装的 Mac App（未签名）。iOS/iPadOS 暂缓。详见 [其 README 的 Safari 一节](./info-highlight/README.md#safari-macos)。
 
 选项「新增」蓝点：改对应插件的 `options-catalog.js`（步骤写在文件头注释里）。
 

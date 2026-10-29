@@ -29,7 +29,7 @@ Explore how context attributes across a generation (DAG view).
 <img src="client/src/assets/images/dag-dark.gif" width="460" alt="LLM Causal Flow" />
 
 ### Info Highlight
-Highlight the informative / high-surprisal parts of text. Also as a [Chrome extension](https://chromewebstore.google.com/detail/info-highlight/gemajnklkebeikmfphiddpjfimahacdk).
+Highlight the informative / high-surprisal parts of text. Also as a [Chrome extension](https://chromewebstore.google.com/detail/info-highlight/gemajnklkebeikmfphiddpjfimahacdk), and as a Safari extension for macOS. The Safari version isn't in the App Store yet; [build it yourself or download it from CI](extension/info-highlight/README.md#safari-macos). iOS/iPadOS is postponed.
 
 <img src="client/src/assets/images/highlight.png" width="460" alt="Info Highlight" />
 

@@ -54,7 +54,7 @@ What the Safari build changes (everything else is the Chrome code as-is):
 - **Background:** Safari runs it as a background page, not a service worker. `background.scripts` is `safari/background-env.js`, then every `importScripts('…');` line of `background.js` in order, then `background.js`. Only whole-line string-literal `importScripts` is allowed; the build fails otherwise.
 - **On-device engine:** Safari has no `chrome.offscreen`. `safari/background-env.js` mounts `local/offscreen.html` as an iframe in the background page instead. Messages are unchanged, and removing the iframe frees the model.
 - **Permissions:** drops `offscreen` and `file:///*`. `file:` pages count as protected, because Safari extensions can't read them.
-- **Versions:** minimum Safari 17. macOS only, since Safari on iOS has no `contextMenus` or `windows`.
+- **Versions:** the extension needs Safari 17 or later, and the app wrapping it needs macOS 12 or later. `safari_xcode.sh` lowers the Xcode project's deployment target to 12.0, because the packager defaults to the build machine's macOS. It also sets the app's bundle ID to the extension's prefix, so any `--bundle-identifier` works.
 
 Not yet checked on a real Mac:
 - WebGPU with `shader-f16` inside the background-page iframe. If it is missing, Auto falls back to cloud, as on unsupported Chrome.
@@ -63,6 +63,20 @@ Not yet checked on a real Mac:
 - The "Always analyze" host-permission prompt.
 
 The "rate us" link still points to the Chrome Web Store.
+
+### iOS / iPadOS: postponed
+
+The Safari builds are macOS only for now: `safari_xcode.sh` passes `--macos-only` and CI builds only the Mac app. There are two reasons.
+
+- **The background script would crash.** Safari on iOS/iPadOS has no `contextMenus` API, and `background.js` registers a context-menu listener at startup. iOS also lacks `windows.create` and `windows.update`, which all its popup windows use (welcome, model init, notices).
+- **On-device analysis can't run inside the extension.** On iOS the extension's native process is reportedly capped at about 80 MB; that figure comes from 2021 reports and should be retested. The increased-memory entitlement doesn't apply to extensions. Safari extension pages also crash at a few hundred MB. Our smallest suitable model is roughly 150–570 MB. Apple's Foundation Models can't fill the gap, because they only generate text and give no per-token probabilities.
+
+Plan when this resumes:
+1. **Cloud only.** Guard the `contextMenus` calls so the background starts on iOS, and replace the popup windows with tabs. Run the packager without `--macos-only`, which adds iPhone/iPad targets. Analysis uses the cloud API.
+2. **On device, in the companion app.**
+   - Load the model in the app, which isn't bound by the extension's memory cap. Use MLX Swift with Qwen3‑0.6B 4-bit or Gemma‑3‑270M on iOS 26, or Core AI's Qwen3 export on iOS 27. Either way the app needs the increased-memory entitlement.
+   - The extension hands text to the app through an App Group folder, using `browser.runtime.sendNativeMessage` from the background page; content scripts can't call it on iOS.
+   - The user has to open the app to run analysis, because the extension can't launch it in the background. Cloud stays the fallback.
 
 ## Test and package
 
