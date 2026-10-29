@@ -32,6 +32,8 @@ ENV_HELP = """
   INFORADAR_PORT            Docker 监听端口（默认 7860）
   INFORADAR_BASE_MODEL      Docker 覆盖 base 模型 id（可选）
   INFORADAR_INSTRUCT_MODEL  Docker 覆盖 instruct 模型 id（可选）
+  LMSTUDIO_MODELS_DIR   --local-models 扫的 LM Studio 目录（默认 ~/.lmstudio/models）
+  OLLAMA_MODELS         --local-models 扫的 Ollama 目录（默认 ~/.ollama/models）
 """
 
 
@@ -95,6 +97,18 @@ def _parse_args():
         help="本进程参与的槽位，逗号分隔（默认 base,instruct）",
     )
     parser.add_argument(
+        "--local-models",
+        action="store_true",
+        help="扫描 LM Studio / Ollama 已下载的 GGUF，列在 /api/local-models，可作 /api/analyze 的 model",
+    )
+    parser.add_argument(
+        "--local-model",
+        action="append",
+        default=[],
+        metavar="PATH",
+        help="导入指定 GGUF 文件，或含 GGUF / HF 权重的目录（可重复）；model id 为 file/…",
+    )
+    parser.add_argument(
         "--worker",
         action="store_true",
         help="Worker 形态：关 stats/demo 写/admin；保留静态页",
@@ -130,6 +144,15 @@ def _load_and_run(args):
 
     data_dir = resolve_data_dir(args.dir)
     ctx = AppContext.init(args, data_dir)
+
+    if args.local_models or args.local_model:
+        from backend.models import local_library
+
+        found = local_library.configure(args.local_models, args.local_model)
+        usable = [m.id for m in found if m.supported]
+        print(f"[inforadar] local models: {len(usable)} usable of {len(found)} found", flush=True)
+        for model_id in usable:
+            print(f"  {model_id}", flush=True)
 
     # Connexion 3：路由中间件会先于 Flask 拒掉未声明的 OPTIONS；CORS 必须挂在 BEFORE_ROUTING。
     if not ctx.args.no_cors:

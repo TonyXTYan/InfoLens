@@ -66,6 +66,7 @@ from backend.api.visit_stats_api import (  # noqa: F401
     post_visit_stats_reset,
 )
 from backend.api.health import health  # noqa: F401
+from backend.api.local_models import list_local_models  # noqa: F401
 from backend.api.openai_completions import (  # noqa: F401
     completions,
     completions_prompt,

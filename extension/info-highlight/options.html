@@ -439,6 +439,7 @@
     input[type="range"].ih-intensity.ih-fade::-moz-range-thumb {
       background: var(--muted);
     }
+    #ih_cloud_api_model { max-width: min(300px, 42vw); }
     .row-nested {
       padding-left: 12px;
       border-left: 2px solid var(--line);
@@ -895,6 +896,16 @@
       </div>
       <input type="text" id="ih_cloud_api_base" class="auto-site-input" spellcheck="false" autocomplete="off"
         placeholder="http://127.0.0.1:5001" data-i18n-attr="placeholder" />
+    </div>
+    <div class="row row-nested" id="ih_cloud_api_model_row" hidden>
+      <div class="row-text">
+        <div class="row-title" data-i18n>Model on your server</div>
+        <p id="ih_cloud_api_model_status" class="row-desc"></p>
+      </div>
+      <div class="row-btns">
+        <select id="ih_cloud_api_model" aria-label="Model on your server" data-i18n-attr="aria-label"></select>
+        <button type="button" id="ih_cloud_api_model_rescan" data-i18n>Rescan</button>
+      </div>
     </div>
     <div class="row" id="ih_cloud_latency_row">
       <div class="row-text">

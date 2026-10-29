@@ -9,6 +9,7 @@
     body { margin: 0; }
     main { max-width: 640px; margin: 0 auto; padding: 24px 20px 48px; }
     h1 { font-size: 1.25rem; font-weight: 600; margin: 0 0 16px; }
+    h2 { font-size: 1rem; font-weight: 600; margin: 24px 0 8px; }
     p { margin: 0 0 12px; font-size: 15px; line-height: 1.45; }
     a { color: #0A84FF; }
     pre {
@@ -36,6 +37,11 @@
     <pre>pip install -r requirements.txt
 python run.py --no-facade-token</pre>
     <p data-i18n>The service listens at http://127.0.0.1:5001 by default.</p>
+    <h2 data-i18n>Use models from LM Studio or Ollama</h2>
+    <p data-i18n>To score pages with GGUF models that LM Studio or Ollama already downloaded, start the service like this:</p>
+    <pre>python run.py --no-facade-token --no_auto_load --local-models --address 127.0.0.1</pre>
+    <p data-i18n>Then pick one under "Model on your server" in the extension options. For other folders, add --local-model PATH, or set LMSTUDIO_MODELS_DIR or OLLAMA_MODELS.</p>
+    <p data-i18n>MLX models aren't supported, so download the GGUF version. Base (non-chat) models give the most meaningful highlights.</p>
     <p class="guide-star" data-i18n-html>If this helped you, <a href="https://github.com/dqy08/InfoLens" target="_blank" rel="noopener noreferrer">leave a star</a> on the repo ❤️</p>
   </main>
   <script src="config.js"></script>

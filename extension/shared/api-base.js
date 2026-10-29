@@ -4,16 +4,20 @@
  * - IL_ANALYZE_API_BASE：云端信息密度分析 + 选项页「算力」测速
  * ih_cloud_api_base_enabled 为 true 时：analyze 只走用户填的 URL（直连 /api/analyze），不回退 config 沙箱或官方门面。
  * 开关关着时：analyze 走 IL_API_BASE 对应门面 /v2。额度等仍只用 IL_API_BASE。
+ * ih_cloud_api_model：自定义服务上选的模型 id（如本机服务扫到的 ollama/qwen3:0.6b）；空则沿用选项里的云端模型。只在开关开着时生效。
  */
 const IL_DEFAULT_API_BASE = 'https://api.info-lens.app';
 const IL_CLOUD_API_BASE_KEY = 'ih_cloud_api_base';
 const IL_CLOUD_API_BASE_ENABLED_KEY = 'ih_cloud_api_base_enabled';
+const IL_CLOUD_API_MODEL_KEY = 'ih_cloud_api_model';
 
 /** @type {string} */
 var IL_API_BASE = IL_DEFAULT_API_BASE;
 /** @type {string} */
 var IL_ANALYZE_API_BASE = IL_DEFAULT_API_BASE;
 
+/** @type {string} */
+let _customApiModel = '';
 /** @type {boolean} */
 let _useFacadeV2 = true;
 /** @type {Promise<void> | null} */
@@ -78,29 +82,33 @@ function IL_resolveFacadeAnalyzeApiBase() {
   return IL_DEFAULT_API_BASE;
 }
 
-function IL_applyResolved(urlRaw, enabled) {
+function IL_applyResolved(urlRaw, enabled, model) {
   IL_API_BASE = IL_resolveGeneralApiBase();
   if (IL_isCloudApiOverrideEnabled(enabled)) {
     const raw = typeof urlRaw === 'string' ? urlRaw.trim() : '';
     IL_ANALYZE_API_BASE = IL_normalizeCloudApiBase(raw);
     _useFacadeV2 = false;
+    _customApiModel = typeof model === 'string' ? model.trim() : '';
   } else {
     IL_ANALYZE_API_BASE = IL_resolveFacadeAnalyzeApiBase();
     _useFacadeV2 = true;
+    _customApiModel = '';
   }
 }
 
 function IL_readStoredApiBaseOverride() {
   return new Promise((resolve, reject) => {
-    chrome.storage.local.get([IL_CLOUD_API_BASE_KEY, IL_CLOUD_API_BASE_ENABLED_KEY], (res) => {
+    chrome.storage.local.get([IL_CLOUD_API_BASE_KEY, IL_CLOUD_API_BASE_ENABLED_KEY, IL_CLOUD_API_MODEL_KEY], (res) => {
       if (chrome.runtime.lastError) {
         reject(new Error(chrome.runtime.lastError.message));
         return;
       }
       const url = res?.[IL_CLOUD_API_BASE_KEY];
+      const model = res?.[IL_CLOUD_API_MODEL_KEY];
       resolve({
         url: typeof url === 'string' ? url : '',
         enabled: res?.[IL_CLOUD_API_BASE_ENABLED_KEY],
+        model: typeof model === 'string' ? model : '',
       });
     });
   });
@@ -108,11 +116,17 @@ function IL_readStoredApiBaseOverride() {
 
 globalThis.IL_CLOUD_API_BASE_KEY = IL_CLOUD_API_BASE_KEY;
 globalThis.IL_CLOUD_API_BASE_ENABLED_KEY = IL_CLOUD_API_BASE_ENABLED_KEY;
+globalThis.IL_CLOUD_API_MODEL_KEY = IL_CLOUD_API_MODEL_KEY;
 globalThis.IL_DEFAULT_API_BASE = IL_DEFAULT_API_BASE;
 globalThis.IL_isCloudApiOverrideEnabled = IL_isCloudApiOverrideEnabled;
 
 globalThis.IL_useFacadeV2Analyze = function IL_useFacadeV2Analyze() {
   return _useFacadeV2;
+};
+
+/** 自定义服务上选的模型 id；开关关或没选则 ''（调用方沿用云端模型）。 */
+globalThis.IL_customApiModel = function IL_customApiModel() {
+  return _customApiModel;
 };
 
 /** 选项页测速：用户自建时打 Python /api/health，否则门面 /backend-latency；开关开但 URL 无效则 skip */
@@ -131,9 +145,9 @@ globalThis.IL_ensureApiBaseLoaded = function IL_ensureApiBaseLoaded() {
   if (!_apiBaseReady) {
     const gen = _applyGeneration;
     _apiBaseReady = IL_readStoredApiBaseOverride()
-      .then(({ url, enabled }) => {
+      .then(({ url, enabled, model }) => {
         if (gen !== _applyGeneration) return;
-        IL_applyResolved(url, enabled);
+        IL_applyResolved(url, enabled, model);
       })
       .catch(() => {
         if (gen !== _applyGeneration) return;
@@ -146,10 +160,11 @@ globalThis.IL_ensureApiBaseLoaded = function IL_ensureApiBaseLoaded() {
 /**
  * @param {string} urlRaw storage 中的 URL 原文
  * @param {boolean | undefined} enabledFlag ih_cloud_api_base_enabled
+ * @param {string} [model] ih_cloud_api_model
  */
-globalThis.IL_applyCloudApiBaseOverride = function IL_applyCloudApiBaseOverride(urlRaw, enabledFlag) {
+globalThis.IL_applyCloudApiBaseOverride = function IL_applyCloudApiBaseOverride(urlRaw, enabledFlag, model) {
   _applyGeneration += 1;
-  IL_applyResolved(typeof urlRaw === 'string' ? urlRaw : '', enabledFlag);
+  IL_applyResolved(typeof urlRaw === 'string' ? urlRaw : '', enabledFlag, model);
   _apiBaseReady = Promise.resolve();
 };
 
@@ -158,10 +173,12 @@ IL_applyResolved('', false);
 if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
-    if (!changes[IL_CLOUD_API_BASE_KEY] && !changes[IL_CLOUD_API_BASE_ENABLED_KEY]) return;
-    chrome.storage.local.get([IL_CLOUD_API_BASE_KEY, IL_CLOUD_API_BASE_ENABLED_KEY], (res) => {
+    if (!changes[IL_CLOUD_API_BASE_KEY] && !changes[IL_CLOUD_API_BASE_ENABLED_KEY] && !changes[IL_CLOUD_API_MODEL_KEY]) return;
+    const keys = [IL_CLOUD_API_BASE_KEY, IL_CLOUD_API_BASE_ENABLED_KEY, IL_CLOUD_API_MODEL_KEY];
+    chrome.storage.local.get(keys, (res) => {
       const url = typeof res?.[IL_CLOUD_API_BASE_KEY] === 'string' ? res[IL_CLOUD_API_BASE_KEY] : '';
-      IL_applyCloudApiBaseOverride(url, res?.[IL_CLOUD_API_BASE_ENABLED_KEY]);
+      const model = typeof res?.[IL_CLOUD_API_MODEL_KEY] === 'string' ? res[IL_CLOUD_API_MODEL_KEY] : '';
+      IL_applyCloudApiBaseOverride(url, res?.[IL_CLOUD_API_BASE_ENABLED_KEY], model);
     });
   });
 }

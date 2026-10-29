@@ -23,19 +23,24 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformers.utils import is_flash_attn_2_available
 
 from .device import DeviceManager
-from .load_utils import resolve_and_load
+from .load_utils import gguf_load_args, gguf_metadata, is_gguf_file, resolve_and_load
 from backend.platform.quantization_config import get_quantization_config
 
 
 def gemma_runtime_dtype(
     device: torch.device, model_path: Optional[str], default: torch.dtype
 ) -> torch.dtype:
-    """Gemma 以 bf16 训练；MPS/CUDA 上用 fp16 前向会出 NaN logits。"""
-    if device.type not in ("cuda", "mps"):
+    """Gemma 以 bf16 训练；MPS/CUDA 上用 fp16 前向会出 NaN logits。
+    Ollama 的 GGUF blob 文件名不带模型名，按文件里的 architecture 认。"""
+    if device.type not in ("cuda", "mps") or not model_path:
         return default
-    if not model_path or "gemma" not in model_path.lower():
-        return default
-    return torch.bfloat16
+    if "gemma" in model_path.lower():
+        return torch.bfloat16
+    if os.path.isfile(model_path) and is_gguf_file(model_path):
+        arch, _ = gguf_metadata(model_path)
+        if (arch or "").startswith("gemma"):
+            return torch.bfloat16
+    return default
 
 
 def get_device_load_strategy(
@@ -141,7 +146,8 @@ def load_causal_lm(
         load_kw.update(extra_model_kwargs)
 
     def _load(path: str, lf: bool):
-        kw = dict(local_files_only=lf, **load_kw)
+        path, gguf_kw = gguf_load_args(path)
+        kw = dict(local_files_only=lf, **load_kw, **gguf_kw)
         if use_int8:
             from transformers import BitsAndBytesConfig
             return AutoModelForCausalLM.from_pretrained(
@@ -177,8 +183,9 @@ def load_tokenizer(model_path: str):
     """加载 tokenizer。本地优先时先解析为缓存路径，避免 tokenizer 内部 model_info 联网。"""
 
     def _load(path: str, lf: bool):
+        path, gguf_kw = gguf_load_args(path)
         return AutoTokenizer.from_pretrained(
-            path, trust_remote_code=True, local_files_only=lf
+            path, trust_remote_code=True, local_files_only=lf, **gguf_kw
         )
 
     return resolve_and_load(model_path, _load)

@@ -529,6 +529,56 @@ paths:
                 items:
                   type: string
 
+  /local-models:
+    get:
+      tags:
+        - all
+      summary: models already downloaded by LM Studio / Ollama (run.py --local-models)
+      operationId: server.list_local_models
+      parameters:
+        - name: rescan
+          in: query
+          type: boolean
+          required: false
+          description: scan the model folders again before answering
+      responses:
+        200:
+          description: enabled is false unless the server was started with --local-models or --local-model
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+              enabled:
+                type: boolean
+              models:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      description: pass as model to /api/analyze
+                    source:
+                      type: string
+                      enum: [lmstudio, ollama, file]
+                    name:
+                      type: string
+                    format:
+                      type: string
+                    size_bytes:
+                      type: integer
+                    architecture:
+                      type: string
+                    quantization:
+                      type: string
+                    supported:
+                      type: boolean
+                    reason:
+                      type: string
+        403:
+          description: request came from a website (only extensions and local pages may list local models)
+
   /current_model:
     get:
       tags:

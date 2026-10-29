@@ -56,6 +56,7 @@
     'ih_cloud_api_base_row', 'ih_cloud_api_base_enabled', 'ih_cloud_api_base_wrap',
     'ih_cloud_latency_row',
     'ih_cloud_api_base', 'ih_cloud_api_base_error',
+    'ih_cloud_api_model_row', 'ih_cloud_api_model', 'ih_cloud_api_model_status', 'ih_cloud_api_model_rescan',
     'latency_edge', 'latency_backend', 'latency_retry',
     'webgpu_desc', 'local_models_hint', 'local_models_list', 'webgpu_linger_sec',
     'auto_sites', 'auto_site_input', 'auto_site_add', 'auto_site_error',
@@ -605,8 +606,10 @@
     const show = !IH_localState.choiceById(choiceId).local;
     el.ih_cloud_api_base_row.hidden = !show;
     el.ih_cloud_latency_row.hidden = !show;
-    if (!show) el.ih_cloud_api_base_wrap.hidden = true;
-    else syncCloudApiBaseWrapVisible();
+    if (!show) {
+      el.ih_cloud_api_base_wrap.hidden = true;
+      el.ih_cloud_api_model_row.hidden = true;
+    } else syncCloudApiBaseWrapVisible();
   }
 
   function applyBackend(st) {
@@ -1663,6 +1666,7 @@
 
   function syncCloudApiBaseWrapVisible() {
     el.ih_cloud_api_base_wrap.hidden = !el.ih_cloud_api_base_enabled.checked;
+    void refreshServerModels(false);
   }
 
   function applyCloudApiBaseFromUi() {
@@ -1670,7 +1674,73 @@
     const raw = el.ih_cloud_api_base.value.trim();
     IL_applyCloudApiBaseOverride(raw, enabled);
     measureCloudLatency();
+    void refreshServerModels(false);
   }
+
+  /** 本机服务（run.py --local-models）扫到的 LM Studio / Ollama 模型；选中的 id 存 IL_CLOUD_API_MODEL_KEY，分析时代替云端模型。 */
+  const SOURCE_LABELS = { lmstudio: 'LM Studio', ollama: 'Ollama', file: 'File' };
+  let serverModelsGen = 0;
+
+  function serverModelLabel(m) {
+    const size = m.size_bytes ? `${Math.round(m.size_bytes / 1e6)} MB` : '';
+    // LM Studio 的 name 是 <publisher>/<repo>/<file>，下拉里只留文件名，全称在 title
+    const name = m.source === 'lmstudio' ? m.name.split('/').pop() : m.name;
+    return [name, SOURCE_LABELS[m.source] || m.source, m.quantization, size].filter(Boolean).join(' · ');
+  }
+
+  async function fetchServerModels(base, rescan) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), LATENCY_MS);
+    try {
+      const res = await fetch(`${base}/api/local-models${rescan ? '?rescan=true' : ''}`, { cache: 'no-store', signal: ctrl.signal });
+      if (res.status === 404) return { enabled: false, models: [] };
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async function refreshServerModels(rescan) {
+    const gen = ++serverModelsGen;
+    const base = IL_normalizeCloudApiBase(el.ih_cloud_api_base.value.trim());
+    const show = !el.ih_cloud_api_base_wrap.hidden && el.ih_cloud_api_base_enabled.checked && !!base;
+    el.ih_cloud_api_model_row.hidden = !show;
+    if (!show) return;
+    el.ih_cloud_api_model_rescan.disabled = true;
+    el.ih_cloud_api_model_status.textContent = tr('Looking for models on your server…');
+    const [body, stored] = await Promise.all([
+      fetchServerModels(base, rescan),
+      chrome.storage.local.get(IL_CLOUD_API_MODEL_KEY).then((r) => r?.[IL_CLOUD_API_MODEL_KEY] || ''),
+    ]);
+    if (gen !== serverModelsGen) return;
+    el.ih_cloud_api_model_rescan.disabled = false;
+    const models = Array.isArray(body?.models) ? body.models : [];
+    const select = el.ih_cloud_api_model;
+    select.replaceChildren(new Option(tr('Cloud model selected above'), ''));
+    for (const m of models) {
+      const opt = new Option(m.supported ? serverModelLabel(m) : tr('{label} (unsupported)', { label: serverModelLabel(m) }), m.id);
+      opt.disabled = !m.supported;
+      opt.title = m.reason || m.id;
+      select.append(opt);
+    }
+    if (stored && !models.some((m) => m.id === stored && m.supported)) {
+      select.append(new Option(tr('{label} (not found on this server)', { label: stored }), stored));
+    }
+    select.value = stored;
+    const usable = models.filter((m) => m.supported).length;
+    if (!body) el.ih_cloud_api_model_status.textContent = tr("Can't reach the server.");
+    else if (!body.enabled) el.ih_cloud_api_model_status.textContent = tr('To use models from LM Studio or Ollama, start the server with --local-models.');
+    else if (!usable) el.ih_cloud_api_model_status.textContent = tr('No usable LM Studio or Ollama models found. Download a GGUF model, then rescan.');
+    else el.ih_cloud_api_model_status.textContent = tr('{n} usable models from LM Studio / Ollama. Cached pages keep their old result; use Reanalyze.', { n: usable });
+  }
+
+  el.ih_cloud_api_model.addEventListener('change', () => {
+    chrome.storage.local.set({ [IL_CLOUD_API_MODEL_KEY]: el.ih_cloud_api_model.value });
+  });
+  el.ih_cloud_api_model_rescan.addEventListener('click', () => void refreshServerModels(true));
 
   function loadCloudApiBaseField() {
     return new Promise((resolve) => {

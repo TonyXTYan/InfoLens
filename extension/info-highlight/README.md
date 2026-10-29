@@ -35,6 +35,28 @@ PDF 与 `file:` 不进这条路。名单在选项页 Auto analyze 里增删（�
 
 本地调试改 gitignore 的 `config.js`（例如 `modalDebug: true`，或 `apiBase: 'https://…'` 指向沙箱门面），再构建。没有这份就用空配置。上架构建带 `--release`，写入空配置，不带本地这份。
 
+## Models from LM Studio / Ollama
+
+The extension can't read your disk or run GGUF files itself. Instead, it can use a local copy of this repo's backend to score pages with models that LM Studio or Ollama already downloaded.
+
+1. Start the backend with `--local-models`:
+
+   ```bash
+   python run.py --no-facade-token --no_auto_load --local-models --address 127.0.0.1
+   ```
+
+   It scans `~/.lmstudio/models` and `~/.ollama/models`. If your models live elsewhere, set `LMSTUDIO_MODELS_DIR` / `OLLAMA_MODELS`, or pass `--local-model PATH` (repeatable) for a GGUF file or folder. `--no_auto_load` skips downloading the default Hugging Face model at startup.
+2. In the extension options, choose a cloud model, turn on "Custom cloud API URL", and enter `http://127.0.0.1:5001`.
+3. Pick a model under "Model on your server". The extension sends its id (e.g. `ollama/qwen3:0.6b`) as `model` to `/api/analyze`. A model pinned from the right-click "Reanalyze" menu still wins.
+
+How it works:
+- The backend loads each GGUF through transformers, which dequantizes it, so memory use is that of the full-precision model. Scoring then runs through the same code path as the Hugging Face models.
+- `/api/local-models` lists what was found. It never includes file paths, and it answers only extension pages, `localhost` pages and clients that send no `Origin`. Analysis with a local model has the same limit, because the backend allows any origin (CORS `*`).
+- Supported architectures are whatever the installed transformers can load from GGUF. With 4.57 that includes Qwen2/3, Llama, Mistral, Gemma 2/3 and Phi‑3.
+- MLX folders from LM Studio are listed as unsupported. Ollama's re-packaged blobs for some newer architectures may fail to load.
+- Base (non-chat) models give the most meaningful highlights.
+- Pages that are already cached keep their old result; use "Reanalyze this page".
+
 ## Safari (macOS)
 
 Same source, separate build. `--target safari` writes `extension/dist/info-highlight-safari/`; the Chrome build is unchanged.

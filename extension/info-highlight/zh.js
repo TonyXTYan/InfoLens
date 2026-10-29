@@ -199,6 +199,13 @@ globalThis.IH_zh ||= Object.freeze(Object.assign({
   'In the repository root:': '在仓库根目录：',
   'The service listens at http://127.0.0.1:5001 by default.':
     '服务默认在 http://127.0.0.1:5001。',
+  'Use models from LM Studio or Ollama': '使用 LM Studio 或 Ollama 的模型',
+  'To score pages with GGUF models that LM Studio or Ollama already downloaded, start the service like this:':
+    '想用 LM Studio 或 Ollama 已下载的 GGUF 模型给网页打分，这样启动服务：',
+  'Then pick one under "Model on your server" in the extension options. For other folders, add --local-model PATH, or set LMSTUDIO_MODELS_DIR or OLLAMA_MODELS.':
+    '然后在扩展选项的「服务上的模型」里选一个。模型在别的目录时，加 --local-model 路径，或设置 LMSTUDIO_MODELS_DIR / OLLAMA_MODELS。',
+  "MLX models aren't supported, so download the GGUF version. Base (non-chat) models give the most meaningful highlights.":
+    '不支持 MLX 模型，请下载 GGUF 版本。Base（非对话）模型的高亮最有意义。',
   'If this helped you, <a href="https://github.com/dqy08/InfoLens" target="_blank" rel="noopener noreferrer">leave a star</a> on the repo ❤️':
     '如果帮到你了，就去<a href="https://github.com/dqy08/InfoLens" target="_blank" rel="noopener noreferrer">点个 Star</a>吧 ❤️',
   'Enter a valid http(s) URL, e.g. http://127.0.0.1:5001':
@@ -208,6 +215,19 @@ globalThis.IH_zh ||= Object.freeze(Object.assign({
   'Allow access to this service URL to use a custom API.':
     '请允许扩展访问该服务地址，才能使用自定义 API。',
   'http://127.0.0.1:5001': 'http://127.0.0.1:5001',
+  'Model on your server': '服务上的模型',
+  'Rescan': '重新扫描',
+  'Looking for models on your server…': '正在查找服务上的模型…',
+  'Cloud model selected above': '沿用上面选的云端模型',
+  '{label} (unsupported)': '{label}（不支持）',
+  '{label} (not found on this server)': '{label}（服务上没找到）',
+  "Can't reach the server.": '连不上服务。',
+  'To use models from LM Studio or Ollama, start the server with --local-models.':
+    '要用 LM Studio 或 Ollama 的模型，请带 --local-models 启动服务。',
+  'No usable LM Studio or Ollama models found. Download a GGUF model, then rescan.':
+    '没找到可用的 LM Studio 或 Ollama 模型。下载一个 GGUF 模型后重新扫描。',
+  '{n} usable models from LM Studio / Ollama. Cached pages keep their old result; use Reanalyze.':
+    '找到 {n} 个可用的 LM Studio / Ollama 模型。已缓存的页面仍显示旧结果，可用「重新分析」。',
   'Cloud network latency': '云端网络延迟',
   'Measuring…': '测量中…',
   'Edge server': '边缘服务器',

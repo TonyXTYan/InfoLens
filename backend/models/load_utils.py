@@ -69,6 +69,43 @@ def ensure_model_local(model_path: str, *, force_download: bool = False) -> str:
     return model_path
 
 
+GGUF_MAGIC = b"GGUF"
+
+
+def is_gguf_file(path: str) -> bool:
+    """按文件头认 GGUF：LM Studio 是 *.gguf，Ollama 的 blob 没有后缀（sha256-…）。"""
+    try:
+        with open(path, "rb") as f:
+            return f.read(4) == GGUF_MAGIC
+    except OSError:
+        return False
+
+
+def gguf_load_args(model_path: str) -> tuple[str, dict]:
+    """GGUF 单文件 → (所在目录, {"gguf_file": 文件名})，交给 from_pretrained；其它路径原样。
+    transformers 会把 GGUF 反量化成普通权重，内存按加载 dtype 算。"""
+    if os.path.isfile(model_path) and is_gguf_file(model_path):
+        return os.path.dirname(model_path), {"gguf_file": os.path.basename(model_path)}
+    return model_path, {}
+
+
+def gguf_metadata(path: str) -> tuple[str | None, str | None]:
+    """(general.architecture, 量化类型如 Q4_K_M)。只读文件头与张量表，不读权重。"""
+    from gguf import GGUFReader, LlamaFileType
+
+    reader = GGUFReader(path)
+    arch_field = reader.fields.get("general.architecture")
+    arch = arch_field.contents() if arch_field is not None else None
+    ft_field = reader.fields.get("general.file_type")
+    quant = None
+    if ft_field is not None:
+        try:
+            quant = LlamaFileType(int(ft_field.contents())).name.removeprefix("MOSTLY_")
+        except ValueError:
+            quant = str(ft_field.contents())
+    return arch, quant
+
+
 def resolve_and_load(model_path: str, loader: Callable[[str, bool], T]) -> T:
     """
     先确保模型本地可用，再加载。加载时始终使用 local_files_only=True。

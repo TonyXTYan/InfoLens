@@ -88,3 +88,36 @@ test('IL_analyzeLatencyTarget', () => {
   assert.equal(mixed.base, 'http://127.0.0.1:5001');
   assert.equal(mixed.path, '/api/health');
 });
+
+test('自定义服务上选的模型只在开关开着时生效', () => {
+  const s = loadApiBase();
+  s.IL_applyCloudApiBaseOverride('http://127.0.0.1:5001', true, ' ollama/qwen3:0.6b ');
+  assert.equal(s.IL_customApiModel(), 'ollama/qwen3:0.6b');
+  s.IL_applyCloudApiBaseOverride('http://127.0.0.1:5001', false, 'ollama/qwen3:0.6b');
+  assert.equal(s.IL_customApiModel(), '');
+  s.IL_applyCloudApiBaseOverride('http://127.0.0.1:5001', true);
+  assert.equal(s.IL_customApiModel(), '');
+});
+
+test('启动时从 storage 读出自定义服务的模型', async () => {
+  const stored = {
+    ih_cloud_api_base: 'http://127.0.0.1:5001',
+    ih_cloud_api_base_enabled: true,
+    ih_cloud_api_model: 'lmstudio/Qwen/Qwen3-0.6B-GGUF/Qwen3-0.6B-Q8_0.gguf',
+  };
+  const sandbox = {
+    URL,
+    chrome: {
+      runtime: {},
+      storage: {
+        local: { get: (keys, cb) => cb(Object.fromEntries(keys.filter((k) => k in stored).map((k) => [k, stored[k]]))) },
+        onChanged: { addListener() {} },
+      },
+    },
+    IH_CONFIG: {},
+  };
+  runInNewContext(src, sandbox);
+  await sandbox.IL_ensureApiBaseLoaded();
+  assert.equal(sandbox.IL_customApiModel(), stored.ih_cloud_api_model);
+  assert.equal(sandbox.IL_useFacadeV2Analyze(), false);
+});

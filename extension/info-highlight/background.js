@@ -1720,7 +1720,9 @@ async function notifyAnalyzeNetworkWait(tabId, waitUi) {
 
 async function fetchTokensForChoice(st, forceCloud, text, tabId, cloudModel, waitUi) {
   const selected = IH_localState.choiceById(st.choice);
-  const model = cloudModel || selected.cloudModel;
+  await IL_ensureApiBaseLoaded();
+  // 右键钉的模型优先；其次自定义服务上选的（如本机 LM Studio / Ollama 的）；再次选项里的云端模型
+  const model = cloudModel || IL_customApiModel() || selected.cloudModel;
   const useLocal = !forceCloud && selected.local;
   const got = await fetchTokens(useLocal ? USAGE_ENGINE_LOCAL : 'cloud', text, model, tabId, waitUi);
   return { ...got, engine: got.usageEngine || USAGE_ENGINE_LOCAL };

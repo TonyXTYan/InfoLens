@@ -14,6 +14,8 @@ from backend.models.model_manager import (
     inference_lock,
 )
 from model_paths import MODEL_PATHS, resolve_hf_path, validate_base_model_id
+from backend.models import local_library
+from backend.api.local_models import local_origin_allowed
 from backend.platform.oom import exit_if_oom
 from backend.api.sse_utils import (
     SSEProgressReporter,
@@ -106,13 +108,17 @@ def _validate_and_prepare_request(analyze_request):
         try:
             model = validate_base_model_id(model)
         except ValueError:
-            known = ", ".join(MODEL_PATHS.keys())
-            return (
-                None,
-                None,
-                f"Unknown base model '{analyze_request.get('model')}'. Known: {known}",
-                400,
-            )
+            local = local_library.get(model)
+            if local is None:
+                known = ", ".join(MODEL_PATHS.keys())
+                return (
+                    None,
+                    None,
+                    f"Unknown base model '{analyze_request.get('model')}'. Known: {known}",
+                    400,
+                )
+            if not local.supported:
+                return None, None, f"Model '{model}' can't be used: {local.reason}", 400
     
     return model, text, None, None
 
@@ -219,6 +225,9 @@ def analyze(analyze_request):
     text = analyze_request.get("text")
     if not text:
         return _error_response("", "", "Missing text", 400)
+    requested = analyze_request.get("model")
+    if requested and local_library.get(requested) is not None and not local_origin_allowed():
+        return _error_response(requested, text, "Local models are only available to the browser extension and local pages", 403)
 
     client_ip = get_client_ip()
     privacy_mode = bool(analyze_request.get("privacy_mode", False))
